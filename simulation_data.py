@@ -95,7 +95,7 @@ def represent_as_box_plot(simulations):
     df = pd.DataFrame(data, columns=['Timestamp', 'NumHealthy'])
     max_time = df.loc[df['Timestamp'].idxmax()]['Timestamp']
 
-    boxplot_ranges = np.arange(0, max_time, int(max_time / 50))
+    boxplot_ranges = np.arange(0, max_time, int(max_time / 40))
     print("Number of boxplots: " + str(boxplot_ranges.shape))
     limited_df = df.loc[df['Timestamp'].isin(boxplot_ranges)]
 

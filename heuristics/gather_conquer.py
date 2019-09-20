@@ -11,13 +11,13 @@ Implementation of the gather and conquer heuristic.
 Target = namedtuple("Target", "group cluster_id from_loc to_loc")
 
 
-def closest_cluster_to(target, clusters):
+def closest_cluster_to(target, clusters, except_indices=[]):
     min_dist = float('inf')
     min_idx = None
     # clusters = self._enemy_clusters if enemy else self._clusters
     for idx, cluster in clusters.items():
         curr_dist = euclidean_dist(cluster.get_center(), target)
-        if curr_dist < min_dist and curr_dist != 0:
+        if curr_dist < min_dist and idx not in except_indices:
             min_dist = curr_dist
             min_idx = idx
 
@@ -57,6 +57,11 @@ def gather_and_conquer(healthy_clusters, contaminated_clusters):
             else:
                 # If there is currently a target continue until the cluster gets there.
                 closest_cluster_to_target = closest_cluster_to(my_cluster.target_loc, contaminated_clusters)
+
+                if closest_cluster_to_target is None:
+                    my_cluster.target_loc = None
+                    continue
+
                 my_cluster.target_loc = contaminated_clusters[closest_cluster_to_target].get_center()
                 targets[my_cluster.get_index()] = Target(InternalState.CONTAMINATED, closest_cluster_to_target,
                                                          from_loc=my_cluster.get_center(), to_loc=my_cluster.target_loc)
@@ -67,7 +72,8 @@ def gather_and_conquer(healthy_clusters, contaminated_clusters):
     # Handle leftovers, direct them to the closest cluster which is ours in order to make them merge.
     for cluster in healthy_clusters.values():
         if not cluster.allocated_action:
-            closest_cluster = closest_cluster_to(cluster.get_center(), healthy_clusters)
+            closest_cluster = closest_cluster_to(cluster.get_center(), healthy_clusters,
+                                                 except_indices=[cluster.get_index()])
 
             if closest_cluster is not None:
                 cluster.target_loc = healthy_clusters[closest_cluster].get_center()

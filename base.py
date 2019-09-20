@@ -1,6 +1,7 @@
 import numpy as np
 
 import external_policy as External
+from adversary import Adversary
 import utils as U
 
 dynamics = ['point', 'unicycle', 'box2d', 'direct', 'unicycle_acc']
@@ -42,6 +43,7 @@ class World(object):
         # contact response parameters
         self.contact_force = 1e+2
         self.contact_margin = 1e-3
+        self.adversary = Adversary()
 
 
     # return all entities in the world
@@ -111,66 +113,71 @@ class World(object):
         for i, agent in enumerate(relevant_agents.values()):
             agent.set_state(states[i])
 
-    def step(self):
+    def move_agents(self, agents, save_nodes=True):
+        if self.agent_dynamic == 'direct':
+            # Extract actions from the agents.
+            actions = np.zeros([len(agents), 2])
+            for idx, agent in enumerate(agents.values()):
+                actions[idx, :] = agent.action
 
-        self.timestep += 1
-        self.update_agent_states()
+            # direct state manipulation, normalize the actions of all agents.
+            action_norm = np.linalg.norm(actions, axis=1)
+            scaled_actions = np.empty_like(actions)
+            scaled_actions[:, 0] = np.where(action_norm <= 1, actions[:, 0],
+                                            actions[:, 0] / action_norm)
+            scaled_actions[:, 1] = np.where(action_norm <= 1, actions[:, 1],
+                                            actions[:, 1] / action_norm)
 
-        # Move the scripted agents.
-        # TODO - Move the contaminated agents based on a given external policy.
-        # Finish writing external policy for contaminated agents.
-        for agent in self.contaminated_agents.values():
-            # action = External.go_to_closest_neighbor(agent.get_state(), agent.internal_state.value,
-            #                                          agent.get_observation(self.distance_matrix[agent.index, :],
-            #                                                                self.angle_matrix[agent.index, :],
-            #                                                                self.agents))
-            # action = External.random_action()
-            action = External.potential_fields(agent.get_observation(self.distance_matrix[agent.index, :],
-                                                                           self.angle_matrix[agent.index, :],
-                                                                           self.agents), agent.internal_state)
-            # print(action)
-
-            next_coord = agent.get_position() + action #* self.dt
+            next_coord = np.vstack(
+                [agent.get_position()] for agent in agents.values()) + actions  # * self.dt
             if self.torus:
                 next_coord = np.where(next_coord < 0, next_coord + self.world_size, next_coord)
                 next_coord = np.where(next_coord > self.world_size, next_coord - self.world_size, next_coord)
             else:
                 next_coord = np.where(next_coord < 0, 0, next_coord)
                 next_coord = np.where(next_coord > self.world_size, self.world_size, next_coord)
-            agent.set_position(next_coord)
+
+            agent_states_next = next_coord  # + np.ones((self.nr_pursuers, 2)) * np.random.rand(self.nr_pursuers, 2) * 1e-6
+            for i, agent in enumerate(agents.values()):
+                agent.set_position(agent_states_next[i, :])
+
+            if save_nodes:
+                self.nodes = agent_states_next
+
+    def step(self):
+
+        self.timestep += 1
+        self.update_agent_states()
+
+        # Use code in comment if you wish to use a local policy on each one of the agents.
+        # for agent in self.contaminated_agents.values():
+        #     # action = External.go_to_closest_neighbor(agent.get_state(), agent.internal_state.value,
+        #     #                                          agent.get_observation(self.distance_matrix[agent.index, :],
+        #     #                                                                self.angle_matrix[agent.index, :],
+        #     #                                                                self.agents))
+        #     # action = External.random_action()
+        #     action = External.potential_fields(agent.get_observation(self.distance_matrix[agent.index, :],
+        #                                                                    self.angle_matrix[agent.index, :],
+        #                                                                    self.agents), agent.internal_state)
+        #     # print(action)
+        #
+        #     next_coord = agent.get_position() + action #* self.dt
+        #     if self.torus:
+        #         next_coord = np.where(next_coord < 0, next_coord + self.world_size, next_coord)
+        #         next_coord = np.where(next_coord > self.world_size, next_coord - self.world_size, next_coord)
+        #     else:
+        #         next_coord = np.where(next_coord < 0, 0, next_coord)
+        #         next_coord = np.where(next_coord > self.world_size, self.world_size, next_coord)
+        #     agent.set_position(next_coord)
 
             # self.contaminated_states[i, :] = agent.get_state()
 
         if len(self.healthy_agents) > 0:
-            if self.agent_dynamic == 'direct':
-                # Extract actions from the agents.
-                actions = np.zeros([len(self.healthy_agents), 2])
-                for idx, agent in enumerate(self.healthy_agents.values()):
-                    actions[idx, :] = agent.action
+            self.move_agents(agents=self.healthy_agents)
 
-                # direct state manipulation, normalize the actions of all agents.
-                action_norm = np.linalg.norm(actions, axis=1)
-                scaled_actions = np.empty_like(actions)
-                scaled_actions[:, 0] = np.where(action_norm <= 1, actions[:, 0],
-                                         actions[:, 0] / action_norm)
-                scaled_actions[:, 1] = np.where(action_norm <= 1, actions[:, 1],
-                                         actions[:, 1] / action_norm)
-
-
-
-                next_coord = np.vstack([agent.get_position()] for agent in self.healthy_agents.values()) + actions #* self.dt
-                if self.torus:
-                    next_coord = np.where(next_coord < 0, next_coord + self.world_size, next_coord)
-                    next_coord = np.where(next_coord > self.world_size, next_coord - self.world_size, next_coord)
-                else:
-                    next_coord = np.where(next_coord < 0, 0, next_coord)
-                    next_coord = np.where(next_coord > self.world_size, self.world_size, next_coord)
-
-                agent_states_next = next_coord # + np.ones((self.nr_pursuers, 2)) * np.random.rand(self.nr_pursuers, 2) * 1e-6
-                for i, agent in enumerate(self.healthy_agents.values()):
-                    agent.set_position(agent_states_next[i, :])
-
-                self.nodes = agent_states_next
+        self.adversary.gather_all()
+        if len(self.contaminated_agents) > 0:
+            self.move_agents(agents=self.contaminated_agents, save_nodes=False)
 
         # Update the distance and angle based on movement.
         self.update_distance_angle()

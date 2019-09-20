@@ -255,7 +255,7 @@ class ContaminationEnv(Env):
 
 if __name__=="__main__":
     env = ContaminationEnv(10, 10, 100, 2, 6)
-    num_episodes = 1
+    num_episodes = 100
 
     simulations_data = []
 
@@ -268,10 +268,10 @@ if __name__=="__main__":
             # a = np.vstack([np.array([1,0]) for _ in range(20)])
             a = np.vstack([np.array([1, 1]) for _ in range(20)])
             o, rew, dd, _ = env.step(plot=False)
-            # if env.winner is not None:
-            #     simulations_data.append(env.sim_data)
-            #     break
+            if env.winner is not None:
+                simulations_data.append(env.sim_data)
+                break
 
-            env.render()
+            # env.render()
 
-    # represent_as_box_plot(simulations_data)
+    represent_as_box_plot(simulations_data)
