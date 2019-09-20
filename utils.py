@@ -1,7 +1,8 @@
+import math
+
 import numpy as np
 import scipy.spatial as ssp
 import scipy.stats as sst
-import math
 
 
 class EzPickle(object):

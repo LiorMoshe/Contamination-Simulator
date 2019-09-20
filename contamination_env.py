@@ -7,8 +7,13 @@ import matplotlib.pyplot as plt
 import shutil
 from collections import namedtuple
 import matplotlib.transforms as mtrans
-from simulation_data import SimulationData
+from simulation_data import SimulationData, represent_as_box_plot
 from global_actor import GlobalActor
+import logging
+from clusters.cluster_manager import ClusterManager
+
+logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s',
+                    level=logging.DEBUG)
 
 GlobalState = namedtuple("GlobalState", "healthy_agents contaminated_agents distance_matrix angle_matrix")
 
@@ -31,11 +36,9 @@ class ContaminationEnv(Env):
         self.max_obs_rad = max_obs_rad
         self.torus = torus
         self.world = base.World(world_size, torus, dynamics)
-        self.reset()
-        self.plot = None
         self.global_actor = GlobalActor(min_obs_rad, max_obs_rad)
-        self.sim_data = SimulationData()
-
+        ClusterManager(self.max_obs_rad)
+        self.reset()
 
 
 
@@ -120,6 +123,10 @@ class ContaminationEnv(Env):
         """
         self.timestep = 0
         self.winner = None
+        self.plot = None
+        self.global_actor.reset()
+        ClusterManager.instance.reset()
+        self.sim_data = SimulationData()
         healthy_agents = {idx: ContaminationAgent(self, InternalState.HEALTHY, idx) for idx in range(self.num_healthy)}
         contaminated_agents = {idx: ContaminationAgent(self, InternalState.CONTAMINATED, idx) for idx in
                                range(self.num_healthy, self.num_healthy + self.num_contaminated)}
@@ -178,7 +185,7 @@ class ContaminationEnv(Env):
         return self.timestep >= self.timestep_limit or self.winner is not None
 
 
-    def step(self, actions=None):
+    def step(self, actions=None, plot=True):
         """
         :param actions:
         :return: Observations of all the agents.
@@ -187,7 +194,7 @@ class ContaminationEnv(Env):
         Done - Whether we should reset the environment.
         info - diagnostic information for debugging.
         """
-        if self.winner is not None:
+        if self.winner is not None and plot:
             self.sim_data.plot()
             return [], 1, True, {}
 
@@ -200,7 +207,12 @@ class ContaminationEnv(Env):
             for agent, action in zip(self.world.agents.values(), clipped_actions):
                 agent.action = action
         else:
-            self.global_actor.act(self.global_state)
+            # self.global_actor.act(self.global_state)
+
+            # Compute the clusters which will be used by the global players.
+            ClusterManager.instance.update_clusters(self.global_state)
+            self.global_actor.gather_conquer_act()
+
 
 
         self.world.step()
@@ -242,17 +254,24 @@ class ContaminationEnv(Env):
 
 
 if __name__=="__main__":
-    env = ContaminationEnv(10, 25, 100, 2, 6)
+    env = ContaminationEnv(10, 10, 100, 2, 6)
+    num_episodes = 1
 
-    for num_episode in range(1):
+    simulations_data = []
+
+    for num_episode in range(num_episodes):
+        print(num_episode)
         obs = env.reset()
         for t in range(1024):
             # a = np.random.randn(10, 2)
             # a = np.ones((20,2))
             # a = np.vstack([np.array([1,0]) for _ in range(20)])
             a = np.vstack([np.array([1, 1]) for _ in range(20)])
-            o, rew, dd, _ = env.step()
-            # print(dd)
-            # if dd:
+            o, rew, dd, _ = env.step(plot=False)
+            # if env.winner is not None:
+            #     simulations_data.append(env.sim_data)
             #     break
+
             env.render()
+
+    # represent_as_box_plot(simulations_data)

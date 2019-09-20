@@ -7,6 +7,7 @@ This file will contain external policies which can be used by the contaminated g
 A policy will map each given observation to a selected actions.
 An observation in our space will be a relative position and angle of all the agents in our observable area.
 An action is a movement in a given direction
+These are simple local external policies.
 """
 
 ATTRACTION_FORCE = 1.0
@@ -64,11 +65,8 @@ def potential_fields(observation, internal_state):
 
     return potential_force
 
-
-
 def random_action():
     return np.random.rand(1,2)
-
 
 
 

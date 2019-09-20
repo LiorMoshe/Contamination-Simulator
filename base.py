@@ -1,122 +1,9 @@
 import numpy as np
-import utils as U
-import external_policy as External
 
-from contamination_env import InternalState
+import external_policy as External
+import utils as U
 
 dynamics = ['point', 'unicycle', 'box2d', 'direct', 'unicycle_acc']
-
-
-class EntityState(object):
-    """physical/external base state of all entities"""
-    def __init__(self):
-        # physical position
-        self.p_pos = None
-        self.p_orientation = None
-        # physical velocity
-        self.p_vel = None
-        # velocity in world coordinates
-        self.w_vel = None
-
-
-class AgentState(EntityState):
-    """state of agents (including communication and internal/mental state)"""
-    def __init__(self):
-        super(AgentState, self).__init__()
-        # communication utterance
-        self.c = None
-
-
-class Action(object):
-    """action of the agent"""
-    def __init__(self):
-        # physical action
-        self.u = None
-        # communication action
-        self.c = None
-
-
-class Entity(object):
-    """properties and state of physical world entity"""
-    def __init__(self):
-        # name
-        self.name = ''
-        # properties:
-        self.size = 0.050
-        # entity can move / be pushed
-        self.movable = False
-        # entity collides with others
-        self.collide = True
-        # material density (affects mass)
-        self.density = 25.0
-        # color
-        self.color = None
-        # max speed and accel
-        self.max_speed = None
-        self.accel = None
-        # state
-        self.state = EntityState()
-        # mass
-        self.initial_mass = 1.0
-
-    @property
-    def mass(self):
-        return self.initial_mass
-
-
-class Landmark(Entity):
-    """properties of landmark entities"""
-    def __init__(self):
-        super(Landmark, self).__init__()
-
-
-class TransportSource(Landmark):
-    def __init__(self, nr_items):
-        super(TransportSource, self).__init__()
-        self.nr_items = nr_items
-
-    def reset(self, state):
-        self.state.p_pos = state[0:2]
-
-
-class TransportSink(Landmark):
-    def __init__(self):
-        super(TransportSink, self).__init__()
-        self.nr_items = 0
-
-    def reset(self, state):
-        self.state.p_pos = state[0:2]
-
-
-class Agent(Entity):
-    """properties of agent entities"""
-    def __init__(self):
-        super(Agent, self).__init__()
-        # agents are movable by default
-        self.movable = True
-        # cannot send communication signals
-        self.silent = False
-        # cannot observe the world
-        self.blind = False
-        # physical motor noise amount
-        self.u_noise = None
-        # communication noise amount
-        self.c_noise = None
-        # control range
-        self.u_range = 1.0
-        # state
-        self.state = AgentState()
-        # action
-        self.action = Action()
-        # script behavior to execute
-        self.action_callback = None
-        # physical damping
-        self.lin_damping = 0.01  # 0.025  # 0.05
-        self.ang_damping = 0.01  # 0.05
-        self.max_lin_velocity = 10  # cm/s
-        self.max_ang_velocity = np.pi  # 2 * np.pi  # rad/s
-        self.max_lin_acceleration = 10  # 25  # 100  # cm/s**2
-        self.max_ang_acceleration = np.pi  # 60  # rad/s**2
 
 
 class World(object):
@@ -155,6 +42,7 @@ class World(object):
         # contact response parameters
         self.contact_force = 1e+2
         self.contact_margin = 1e-3
+
 
     # return all entities in the world
     @property
@@ -269,13 +157,7 @@ class World(object):
                                          actions[:, 1] / action_norm)
 
 
-                # Rotate the actions based on the angle/orientation of our agent.
-                # for i, action in enumerate(scaled_actions):
-                    # actions[i, :] = np.dot(self.agents[i].rotation_matrix, actions[[i], :].T).T
-                    # actions[i, :] = actions[]
 
-                # Compute the next coordinates of the agents.
-                # next_coord = self.actors[:, 0:2] + actions * self.dt
                 next_coord = np.vstack([agent.get_position()] for agent in self.healthy_agents.values()) + actions #* self.dt
                 if self.torus:
                     next_coord = np.where(next_coord < 0, next_coord + self.world_size, next_coord)
@@ -292,135 +174,3 @@ class World(object):
 
         # Update the distance and angle based on movement.
         self.update_distance_angle()
-
-        # elif self.agent_dynamic == 'unicycle':
-        #     # unicycle dynamics
-        #
-        #     scaled_actions = np.zeros([self.nr_agents, 2])
-        #     for i, agent in enumerate(self.healthy_agents):
-        #         scaled_actions[i, 0] = agent.action.u[0] * agent.max_lin_velocity
-        #         scaled_actions[i, 1] = agent.action.u[1] * agent.max_ang_velocity
-        #
-        #     for i in range(self.action_repeat):
-        #         step = np.concatenate([scaled_actions[:, [0]] * np.cos(self.agent_states[:, 2:3]),
-        #                                scaled_actions[:, [0]] * np.sin(self.agent_states[:, 2:3])],
-        #                               axis=1)
-        #         next_coord = self.agent_states[:, 0:2] + step * self.dt
-        #         next_angle = (self.agent_states[:, 2:3] + scaled_actions[:, [1]] * self.dt) % (2 * np.pi)
-        #
-        #         if self.torus:
-        #             next_coord = np.where(next_coord < 0, next_coord + self.world_size, next_coord)
-        #             next_coord = np.where(next_coord > self.world_size, next_coord - self.world_size, next_coord)
-        #         else:
-        #             next_coord = np.where(next_coord < 0, 0, next_coord)
-        #             next_coord = np.where(next_coord > self.world_size, self.world_size, next_coord)
-        #
-        #         agent_states_next = np.concatenate([next_coord, next_angle], axis=1)
-        #
-        #         self.agent_states = agent_states_next
-        #
-        #     for i, agent in enumerate(self.healthy_agents):
-        #         agent.state.p_pos = agent_states_next[i, 0:2]
-        #         agent.state.p_orientation = agent_states_next[i, 2:3]
-        #         agent.state.p_vel = step[i, :]
-
-        # elif self.agent_dynamic == 'unicycle_acc':
-        #     # unicycle dynamics with acceleration
-        #
-        #     scaled_actions = np.zeros([self.nr_agents, 2])
-        #     for i, agent in enumerate(self.healthy_agents):
-        #         scaled_actions[i, 0] = agent.action.u[0] * agent.max_lin_acceleration
-        #         scaled_actions[i, 1] = agent.action.u[1] * agent.max_ang_acceleration
-        #
-        #     agent_states_next = np.copy(self.agent_states)
-        #     velocities = np.vstack([agent.state.p_vel for agent in self.healthy_agents])
-        #
-        #     damping = np.vstack([np.hstack([agent.lin_damping, agent.ang_damping]) for agent in self.healthy_agents])
-        #     max_lin_vel = np.stack([agent.max_lin_velocity for agent in self.healthy_agents])
-        #     max_ang_vel = np.stack([agent.max_ang_velocity for agent in self.healthy_agents])
-        #
-        #     for i in range(self.action_repeat):
-        #         velocities = velocities * (1 - damping)
-        #
-        #         velocities = velocities + scaled_actions * self.dt
-        #
-        #         velocities[:, 0] = np.where(np.abs(velocities[:, 0]) > max_lin_vel,
-        #                                     np.sign(velocities[:, 0]) * max_lin_vel,
-        #                                     velocities[:, 0])
-        #
-        #         velocities[:, 1] = np.where(np.abs(velocities[:, 1]) > max_ang_vel,
-        #                                     np.sign(velocities[:, 1]) * max_ang_vel,
-        #                                     velocities[:, 1])
-        #
-        #         step = np.concatenate([velocities[:, [0]] * np.cos(agent_states_next[:, 2:3]),
-        #                                velocities[:, [0]] * np.sin(agent_states_next[:, 2:3])],
-        #                               axis=1)
-        #
-        #         turn = velocities[:, [1]]
-        #
-        #         next_coord = agent_states_next[:, 0:2] + step * self.dt
-        #         next_angle = agent_states_next[:, 2:3] + turn * self.dt
-        #
-        #         if self.torus:
-        #             next_coord = np.where(next_coord < 0, next_coord + self.world_size, next_coord)
-        #             next_coord = np.where(next_coord > self.world_size, next_coord - self.world_size, next_coord)
-        #         else:
-        #             next_coord = np.where(next_coord < 0, 0, next_coord)
-        #             next_coord = np.where(next_coord > self.world_size, self.world_size, next_coord)
-        #
-        #         agent_states_next = np.concatenate([next_coord, next_angle, velocities], axis=1)
-        #
-        #     self.agent_states = agent_states_next
-        #
-        #     for i, agent in enumerate(self.healthy_agents):
-        #         agent.state.p_pos = agent_states_next[i, 0:2]
-        #         agent.state.p_orientation = agent_states_next[i, 2:3]
-        #         agent.state.p_vel = velocities[i, :]
-        #         agent.state.w_vel = step[i, :]
-
-        # for i in range(self.action_repeat):
-        #
-        #         for j, agent in enumerate(self.policy_agents):
-        #             agent.state.p_vel = agent.state.p_vel * (1 - agent.damping)
-        #             agent.state.p_vel += scaled_actions[j] * self.dt
-        #             if np.abs(agent.state.p_vel[0]) > agent.max_lin_velocity:
-        #                 agent.state.p_vel[0] = np.sign(agent.state.p_vel[0]) * agent.max_lin_velocity
-        #             if np.abs(agent.state.p_vel[1]) > agent.max_ang_velocity:
-        #                 agent.state.p_vel[1] = np.sign(agent.state.p_vel[1]) * agent.max_ang_velocity
-        #
-        #             step = np.stack([agent.state.p_vel[0] * np.cos(agent.state.p_orientation),
-        #                              agent.state.p_vel[0] * np.sin(agent.state.p_orientation)],
-        #                             axis=0)
-        #             agent.state.p_pos += step * self.dt
-        #             turn = agent.state.p_vel[1]
-        #             agent.state.p_orientation += (turn * self.dt) % (2 * np.pi)
-        #
-        #             next_coord = agent.state.p_pos
-        #             next_angle = agent.state.p_orientation
-        #
-        #             if self.torus:
-        #                 next_coord = np.where(next_coord < 0, next_coord + self.world_size, next_coord)
-        #                 next_coord = np.where(next_coord > self.world_size, next_coord - self.world_size, next_coord)
-        #             else:
-        #                 next_coord = np.where(next_coord < 0, 0, next_coord)
-        #                 next_coord = np.where(next_coord > self.world_size, self.world_size, next_coord)
-        #
-        #             agent_states_next[j, :] = np.hstack([next_coord, next_angle])
-        #
-        #         self.agent_states = agent_states_next
-
-        # elif self.agent_dynamic == 'box2d':
-        #     for i, bot in enumerate(self.bots):
-        #         bot.set_motor(actions[i, 0], actions[i, 1])
-        #
-        #     for j in range(int(self.frame_skip)):
-        #         [bot.set_velocities() for bot in self.bots]
-        #         self.world.Step(self.time_step, 10, 10)
-        #
-        #     next_coord = np.array([bot.get_real_position() for bot in self.bots])
-        #     next_angle = np.array([bot.body.angle for bot in self.bots]) % (2 * np.pi)
-        #
-        #     agent_states_next = np.concatenate([next_coord, next_angle[:, None]], axis=1)
-        #     self.actors = agent_states_next
-        #
-        #     self.nodes = np.vstack([agent_states_next[:, 0:2], self.source, self.sink])

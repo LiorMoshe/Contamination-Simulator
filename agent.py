@@ -1,8 +1,8 @@
-import numpy as np
 from collections import namedtuple
-from gym import spaces
 from enum import Enum
-import matplotlib.pyplot as plt
+
+import numpy as np
+from gym import spaces
 
 
 class InternalState(Enum):
@@ -142,8 +142,8 @@ class ContaminationAgent(object):
         :param cluster:
         :return:
         """
-        if self.internal_state.value == 1:
-            print("Allocated new cluster: " + str(cluster._id))
+        # if self.internal_state.value == 1:
+            # print("Allocated new cluster: " + str(cluster._id))
         # if not self.is_allocated():
         self.cluster = cluster
 
