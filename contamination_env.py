@@ -27,13 +27,14 @@ class ContaminationEnv(Env):
     metadata = {'render.modes': ['human', 'animate']}
 
     def __init__(self, num_healthy, num_contaminated, world_size,
-                 min_obs_rad, max_obs_rad, torus=False, dynamics='direct'):
+                 min_obs_rad, max_obs_rad, torus=False, stop_on_win=True, dynamics='direct'):
         Env.__init__(self)
         self.num_healthy = num_healthy
         self.num_contaminated = num_contaminated
         self.world_size = world_size
         self.min_obs_rad = min_obs_rad
         self.max_obs_rad = max_obs_rad
+        self.stop_on_win = stop_on_win
         self.torus = torus
         self.world = base.World(world_size, torus, dynamics)
         self.global_actor = GlobalActor(min_obs_rad, max_obs_rad)
@@ -42,14 +43,14 @@ class ContaminationEnv(Env):
 
 
 
-    def render(self, mode='human'):
-        if self.plot and self.winner is not None:
+    def render(self, mode='human', debug=False):
+        if self.plot and self.winner is not None and self.stop_on_win:
             self.plot.text(self.world_size / 2 - 20, self.world_size + 10,
                            'Game Over. Winner is ' + str(self.winner),
                            bbox=dict(facecolor='red' if self.winner == InternalState.CONTAMINATED.name else 'blue'
                                      , alpha=0.5),
                            fontsize=14)
-            plt.pause(0.01)
+            plt.pause(0.1)
             return
 
         if mode == 'animate':
@@ -101,10 +102,34 @@ class ContaminationEnv(Env):
         s2 = np.array((30, 30))
         kw = dict(xycoords='data', textcoords='offset points', size=10)
 
-        for agent in self.world.healthy_agents.values():
-            rot = mtrans.Affine2D().rotate(agent.orientation)
-            self.plot.annotate(str(agent.get_cluster_id()), xy=agent.get_position() - rot.transform_point(m2 * s1),
-                        xytext=rot.transform_point(m2 * s2), **kw)
+        # Use if we wish to plot the number of cluster for each agent group.
+        # for agent in self.world.healthy_agents.values():
+        #
+        #     plot_str = str(agent.get_cluster_id())
+        #     if debug:
+        #         plot_str += " to " + str(agent.target_cluster)
+        #
+        #     rot = mtrans.Affine2D().rotate(agent.orientation)
+        #     self.plot.annotate(plot_str, xy=agent.get_position() - rot.transform_point(m2 * s1),
+        #                 xytext=rot.transform_point(m2 * s2), **kw)
+
+        # In debug mode present the clusters of adversaries.
+        if debug:
+            for agent in self.world.contaminated_agents.values():
+                rot = mtrans.Affine2D().rotate(agent.orientation)
+                self.plot.annotate(str(agent.get_cluster_id()), xy=agent.get_position() - rot.transform_point(m2 * s1),
+                               xytext=rot.transform_point(m2 * s2), **kw)
+
+        # Present number of healthy and contaminated agents in a textbox.
+        textstr = '\n'.join(('Healthy: ' + str(len(self.world.healthy_agents)),
+                             'Contaminated: ' + str(len(self.world.contaminated_agents))))
+
+        props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+
+        # place a text box in upper left in axes coords
+        self.plot.text(-0.4, 0.95, textstr, transform=self.plot.transAxes, fontsize=14,
+                verticalalignment='top', bbox=props)
+
 
         if mode == 'human':
             plt.pause(0.01)
@@ -160,7 +185,8 @@ class ContaminationEnv(Env):
         :param transition True if we should perform state transition based on the observation of each agent.
         :return:
         """
-        observations = []
+        observations = {}
+        healthy_observations = []
 
         for idx, agent in self.world.agents.items():
             curr_observation = agent.get_observation(self.world.distance_matrix[idx, :],
@@ -168,13 +194,17 @@ class ContaminationEnv(Env):
                                                       self.world.agents)
 
             if transition:
-                agent.state_transition(curr_observation)
+                observations[idx] = curr_observation
 
             # Collect observations of the healthy agents.
             if agent.internal_state.value == 1:
-                observations.append(curr_observation)
+                healthy_observations.append(curr_observation)
 
-        return observations
+        if transition:
+            for idx, observation in observations.items():
+                self.world.agents[idx].state_transition(observation)
+
+        return healthy_observations
 
     @property
     def timestep_limit(self):
@@ -194,7 +224,7 @@ class ContaminationEnv(Env):
         Done - Whether we should reset the environment.
         info - diagnostic information for debugging.
         """
-        if self.winner is not None and plot:
+        if self.winner is not None and plot and self.stop_on_win:
             self.sim_data.plot()
             return [], 1, True, {}
 
@@ -207,15 +237,13 @@ class ContaminationEnv(Env):
             for agent, action in zip(self.world.agents.values(), clipped_actions):
                 agent.action = action
         else:
-            # self.global_actor.act(self.global_state)
-
             # Compute the clusters which will be used by the global players.
             ClusterManager.instance.update_clusters(self.global_state)
-            self.global_actor.gather_conquer_act()
+            self.global_actor.strategic_movement(self.global_state)
 
 
 
-        self.world.step()
+        self.world.step(self.global_state)
         next_observations = self.get_observations(transition=True)
 
         if len(self.world.healthy_agents) == 0:
@@ -254,8 +282,8 @@ class ContaminationEnv(Env):
 
 
 if __name__=="__main__":
-    env = ContaminationEnv(10, 10, 100, 2, 6)
-    num_episodes = 100
+    env = ContaminationEnv(20, 20, 100, 2, 6, stop_on_win=True)
+    num_episodes = 1
 
     simulations_data = []
 
@@ -263,15 +291,15 @@ if __name__=="__main__":
         print(num_episode)
         obs = env.reset()
         for t in range(1024):
-            # a = np.random.randn(10, 2)
-            # a = np.ones((20,2))
-            # a = np.vstack([np.array([1,0]) for _ in range(20)])
             a = np.vstack([np.array([1, 1]) for _ in range(20)])
             o, rew, dd, _ = env.step(plot=False)
-            if env.winner is not None:
-                simulations_data.append(env.sim_data)
-                break
 
-            # env.render()
+            # Use if we wish to gather data.
+            # if env.winner is not None:
+            #     simulations_data.append(env.sim_data)
+            #     break
 
-    represent_as_box_plot(simulations_data)
+            env.render(debug=False)
+
+    # Use to represent data in series of box plots.
+    # represent_as_box_plot(simulations_data)

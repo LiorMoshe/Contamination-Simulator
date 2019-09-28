@@ -1,4 +1,7 @@
 from .agent_cluster import AgentCluster
+import numpy as np
+from utils import euclidean_dist
+import logging
 
 id_counter = 1
 
@@ -94,8 +97,9 @@ class ClusterManager(object):
 
                         # Merge two clusters together if possible.
                         if cluster_id is not None and agent.is_allocated() and cluster_id in clusters:
-                            clusters[agent.get_cluster_id()].merge(clusters[cluster_id])
-                            del clusters[cluster_id]
+                            if clusters[agent.get_cluster_id()].mergeable(clusters[cluster_id]):
+                                clusters[agent.get_cluster_id()].merge(clusters[cluster_id])
+                                del clusters[cluster_id]
 
                         elif cluster_id is not None and cluster_id in clusters:
                             clusters[cluster_id].add_agent(agent)
@@ -111,3 +115,25 @@ class ClusterManager(object):
                     id_counter += 1
 
 
+                # Make sure there aren't nearly identical clusters.
+                to_be_removed = []
+                for first_cluster in clusters.values():
+                    for second_cluster in clusters.values():
+                        if first_cluster.get_index() != second_cluster.get_index() and \
+                            euclidean_dist(first_cluster.get_center(), second_cluster.get_center()) < 1:
+                            first_cluster.merge(second_cluster)
+                            to_be_removed.append(second_cluster.get_index())
+
+                # logging.info("Clusters to be removed: " + str(to_be_removed))
+                for index in set(to_be_removed):
+                    del clusters[index]
+
+
+
+
+def move_to_clusters_center(clusters):
+    clusters_center = np.sum(np.vstack([cluster.get_center() for cluster in clusters.values()]),
+                             axis=0) / len(clusters)
+
+    for cluster in clusters.values():
+        cluster.move_to_target(clusters_center)

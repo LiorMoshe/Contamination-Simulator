@@ -223,8 +223,12 @@ def get_rotation_matrix(phi):
     return np.squeeze([[np.cos(phi), -np.sin(phi)],
                 [np.sin(phi), np.cos(phi)]])
 
+
 def get_slope(x0, y0, x1, y1):
     return (y1 - y0) / (x1 - x0)
 
 def euclidean_dist(first, second):
     return math.sqrt((first[0] - second[0]) ** 2 + (first[1] - second[1]) ** 2)
+
+def get_max_stable_cycle_size(min_rad, max_rad):
+    return math.floor(2 * math.pi / (math.acos(1 - (2 * min_rad ** 2) / (max_rad ** 2))))

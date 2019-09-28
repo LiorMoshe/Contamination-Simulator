@@ -7,6 +7,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+TIMESTAMP = 'Timestamp'
+NUMHEALTHY = 'Number of Healthy Agents'
+
 mpl.rcParams["axes.labelsize"] = 'small'
 
 class SimulationData(object):
@@ -92,16 +95,16 @@ def represent_as_box_plot(simulations):
                 data.append([timestamp, num_healthy])
 
 
-    df = pd.DataFrame(data, columns=['Timestamp', 'NumHealthy'])
-    max_time = df.loc[df['Timestamp'].idxmax()]['Timestamp']
+    df = pd.DataFrame(data, columns=[TIMESTAMP, NUMHEALTHY])
+    max_time = df.loc[df[TIMESTAMP].idxmax()][TIMESTAMP]
 
     boxplot_ranges = np.arange(0, max_time, int(max_time / 40))
     print("Number of boxplots: " + str(boxplot_ranges.shape))
-    limited_df = df.loc[df['Timestamp'].isin(boxplot_ranges)]
+    limited_df = df.loc[df[TIMESTAMP].isin(boxplot_ranges)]
 
     # print(df)
     # sns.swarmplot(x="Timestamp", y="NumHealthy", data=df)
-    boxplot = sns.boxplot(x='Timestamp', y='NumHealthy', data=limited_df)
+    boxplot = sns.boxplot(x=TIMESTAMP, y=NUMHEALTHY, data=limited_df, color='aqua')
     plt.xticks(fontsize=8)
 
     # boxplot.set_xticks(np.arange(0, max_time, int(max_time / 30)))

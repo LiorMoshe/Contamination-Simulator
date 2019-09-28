@@ -3,6 +3,7 @@ import numpy as np
 import external_policy as External
 from adversary import Adversary
 import utils as U
+import logging
 
 dynamics = ['point', 'unicycle', 'box2d', 'direct', 'unicycle_acc']
 
@@ -123,6 +124,7 @@ class World(object):
             # direct state manipulation, normalize the actions of all agents.
             action_norm = np.linalg.norm(actions, axis=1)
             scaled_actions = np.empty_like(actions)
+
             scaled_actions[:, 0] = np.where(action_norm <= 1, actions[:, 0],
                                             actions[:, 0] / action_norm)
             scaled_actions[:, 1] = np.where(action_norm <= 1, actions[:, 1],
@@ -144,7 +146,7 @@ class World(object):
             if save_nodes:
                 self.nodes = agent_states_next
 
-    def step(self):
+    def step(self, global_state):
 
         self.timestep += 1
         self.update_agent_states()
@@ -178,6 +180,13 @@ class World(object):
         self.adversary.gather_all()
         if len(self.contaminated_agents) > 0:
             self.move_agents(agents=self.contaminated_agents, save_nodes=False)
+
+            # for contaminated_agent in self.contaminated_agents.values():
+            #     observation = contaminated_agent.get_observation(self.distance_matrix[contaminated_agent.index, :],
+            #                                                      self.angle_matrix[contaminated_agent.index, :],
+            #                                                      self.agents)
+            #     logging.info("Agent " + str(contaminated_agent.index) + " in cluster " + str(contaminated_agent.cluster._id)
+            #                  + " can observe " + str(len(observation)))
 
         # Update the distance and angle based on movement.
         self.update_distance_angle()

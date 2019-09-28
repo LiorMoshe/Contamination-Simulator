@@ -3,7 +3,7 @@ from enum import Enum
 
 import numpy as np
 from gym import spaces
-
+import logging
 
 class InternalState(Enum):
     HEALTHY=1
@@ -47,6 +47,9 @@ class ContaminationAgent(object):
         # Current cluster the agent is in.
         self.cluster = None
 
+        # Save for debugging purposes the target cluster.
+        self.target_cluster = None
+        self.action = np.array([0, 0])
 
     @property
     def action_space(self):
@@ -128,6 +131,11 @@ class ContaminationAgent(object):
             else:
                 contaminated_cnt += 1
 
+
+        # if prev_state.value == 2:
+        #     logging.info("Contamianted agent " + str(self.index) + " observes " + str(healthy_cnt) + " healthy and " +
+        #                  str(contaminated_cnt) + " contaminated.")
+
         if healthy_cnt == contaminated_cnt:
             return
 
@@ -142,9 +150,6 @@ class ContaminationAgent(object):
         :param cluster:
         :return:
         """
-        # if self.internal_state.value == 1:
-            # print("Allocated new cluster: " + str(cluster._id))
-        # if not self.is_allocated():
         self.cluster = cluster
 
     def free(self, notify=False):

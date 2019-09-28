@@ -1,5 +1,5 @@
-from clusters.cluster_manager import ClusterManager
-import numpy as np
+from clusters.cluster_manager import ClusterManager, move_to_clusters_center
+from heuristics.gather_conquer import onion_gathering
 
 class Adversary(object):
 
@@ -11,7 +11,9 @@ class Adversary(object):
         """
         clusters = ClusterManager.instance.get_contaminated_clusters()
 
-        clusters_center = np.sum(np.vstack([cluster.get_center() for cluster in clusters.values()]), axis=0) / len(clusters)
+        if len(clusters) > 0:
+            move_to_clusters_center(clusters)
 
-        for cluster in clusters.values():
-            cluster.move_to_target(clusters_center)
+    def onion_gathering(self, global_state):
+        onion_gathering(ClusterManager.instance.get_contaminated_clusters(), global_state)
+
