@@ -177,7 +177,7 @@ class World(object):
         if len(self.healthy_agents) > 0:
             self.move_agents(agents=self.healthy_agents)
 
-        self.adversary.gather_all()
+        self.adversary.gather_and_conquer()
         if len(self.contaminated_agents) > 0:
             self.move_agents(agents=self.contaminated_agents, save_nodes=False)
 

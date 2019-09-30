@@ -260,6 +260,7 @@ class AgentCluster(object):
         if len(self.agents) == 0:
             return
 
+        EPSILON = 10
         num_agents = len(self.agents)
         idx = list(self.agents.keys())[0]
         center = self.get_center()
@@ -277,8 +278,13 @@ class AgentCluster(object):
 
         final_total = int(1 + (agents_per_minrad_ring * (1 + num_rings) * num_rings / 2))
         leftovers = num_agents - final_total
+        # print("Leftovers: ", leftovers)
+        jump = 360 / (leftovers - 1) if leftovers > 1 else 0
+        start =  num_rings * EPSILON
         for i in range(leftovers):
-            locations.append(center)
+            locations.append(np.array([center[0] + (num_rings + 1) * min_rad * math.cos(start + jump * i),
+                                       center[1] + (num_rings + 1) * min_rad * math.sin(start + jump  * i)]))
+            # locations.append(center)
 
         # Each ring multiplies by size based on it's radius from the center.
         rings_sizes = []
@@ -289,9 +295,10 @@ class AgentCluster(object):
 
         for ring in range(num_rings):
             jump = 360 / (rings_sizes[ring] - 1)
+            start = ring * EPSILON
             for i in range(rings_sizes[ring]):
-                locations.append(np.array([center[0] + (ring + 1) * min_rad * math.cos(jump * i),
-                                           center[1] + (ring + 1) * min_rad * math.sin(jump * i)]))
+                locations.append(np.array([center[0] + (ring + 1) * min_rad * math.cos(start + jump * i),
+                                           center[1] + (ring + 1) * min_rad * math.sin(start + jump * i)]))
 
         for idx, agent in enumerate(self.agents.values()):
             d = euclidean_dist(agent.get_position(), locations[idx])
@@ -306,6 +313,13 @@ class AgentCluster(object):
         """
         for agent in self.agents.values():
             agent.action = np.array([0, 0])
+
+    def physical_onion_formation(self):
+        """
+        Create an onion formation which takes note of the dimension of the robots. In this formation
+        the leftover robots are not directed toward the center of the formation.
+        :return:
+        """
 
     def converged_onion(self):
         """

@@ -225,6 +225,8 @@ def get_rotation_matrix(phi):
 
 
 def get_slope(x0, y0, x1, y1):
+    if x1 == x0:
+        return float('inf')
     return (y1 - y0) / (x1 - x0)
 
 def euclidean_dist(first, second):

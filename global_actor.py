@@ -224,13 +224,6 @@ class GlobalActor(object):
                 healthy_clusters[cluster_idx].move_to_target(healthy_clusters[cluster_idx].get_center())
             handled.append(cluster_idx)
 
-
-
-
-
-
-
-
     def rrt_heuristic(self, global_state):
         """
         Build a graph based on RRT from each healthy cluster to their center, while treating centers of contaminated

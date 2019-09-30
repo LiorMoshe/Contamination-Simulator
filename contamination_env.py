@@ -80,10 +80,10 @@ class ContaminationEnv(Env):
         max_obs_circles = []
 
         if self.world.contaminated_states is not None:
-            self.plot.scatter(self.world.contaminated_states[:, 0], self.world.contaminated_states[:, 1], c='r', s=20)
+            self.plot.scatter(self.world.contaminated_states[:, 0], self.world.contaminated_states[:, 1], c='r', s=10)
 
         if len(self.world.healthy_agents) > 0:
-            self.plot.scatter(self.world.healthy_states[:, 0], self.world.healthy_states[:, 1], c='b', s=20)
+            self.plot.scatter(self.world.healthy_states[:, 0], self.world.healthy_states[:, 1], c='b', s=10)
 
         for i in range(self.num_healthy + self.num_contaminated):
             min_obs_circles.append(plt.Circle((self.world.states[i, 0],
@@ -282,7 +282,7 @@ class ContaminationEnv(Env):
 
 
 if __name__=="__main__":
-    env = ContaminationEnv(20, 20, 100, 2, 6, stop_on_win=True)
+    env = ContaminationEnv(40, 40, 100, 2, 6, stop_on_win=True)
     num_episodes = 1
 
     simulations_data = []
@@ -298,7 +298,7 @@ if __name__=="__main__":
             # if env.winner is not None:
             #     simulations_data.append(env.sim_data)
             #     break
-
+            #
             env.render(debug=False)
 
     # Use to represent data in series of box plots.
