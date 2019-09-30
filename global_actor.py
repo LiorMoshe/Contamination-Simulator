@@ -80,6 +80,8 @@ class GlobalActor(object):
                 if len(contaminated_clusters) > 0:
                     closest = closest_cluster_to(gathered_cluster.get_center(), contaminated_clusters)
                     gathered_cluster.move_in_formation(contaminated_clusters[closest].get_center())
+                else:
+                    gathered_cluster.stop()
 
 
     def compute_rand_area(self):

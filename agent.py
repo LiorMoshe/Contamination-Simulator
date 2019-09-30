@@ -173,6 +173,9 @@ class ContaminationAgent(object):
             return None
         return self.cluster._id
 
+    def log_location(self):
+        logging.info("Agent " + str(self.index) + " is in position: " + str(self.pos))
+
 
 
 

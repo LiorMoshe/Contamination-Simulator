@@ -80,20 +80,22 @@ class ContaminationEnv(Env):
         max_obs_circles = []
 
         if self.world.contaminated_states is not None:
-            self.plot.scatter(self.world.contaminated_states[:, 0], self.world.contaminated_states[:, 1], c='r', s=10)
+            self.plot.scatter(self.world.contaminated_states[:, 0], self.world.contaminated_states[:, 1], c='r', s=10,
+                              zorder=2)
 
         if len(self.world.healthy_agents) > 0:
-            self.plot.scatter(self.world.healthy_states[:, 0], self.world.healthy_states[:, 1], c='b', s=10)
+            self.plot.scatter(self.world.healthy_states[:, 0], self.world.healthy_states[:, 1], c='b', s=10,
+                              zorder=2)
 
         for i in range(self.num_healthy + self.num_contaminated):
             min_obs_circles.append(plt.Circle((self.world.states[i, 0],
                                        self.world.states[i, 1]),
-                                      self.min_obs_rad, color='r', fill=False))
+                                      self.min_obs_rad, color='r', fill=False, zorder=1))
             self.plot.add_artist(min_obs_circles[i])
 
             max_obs_circles.append(plt.Circle((self.world.states[i, 0],
                                             self.world.states[i, 1]),
-                                           self.max_obs_rad, color='g', fill=False))
+                                           self.max_obs_rad, color='g', fill=False, zorder=1))
             self.plot.add_artist(max_obs_circles[i])
 
         #Render the arrow which show the orientation of the agents.
@@ -282,7 +284,7 @@ class ContaminationEnv(Env):
 
 
 if __name__=="__main__":
-    env = ContaminationEnv(40, 40, 100, 2, 6, stop_on_win=True)
+    env = ContaminationEnv(9, 0, 100, 2, 6, stop_on_win=False)
     num_episodes = 1
 
     simulations_data = []

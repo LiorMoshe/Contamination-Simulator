@@ -1,4 +1,4 @@
-from utils import get_slope, euclidean_dist, get_max_stable_cycle_size
+from utils import get_slope, euclidean_dist, get_max_stable_cycle_size, to_rad
 import math
 import numpy as np
 import logging
@@ -79,13 +79,16 @@ class AgentCluster(object):
         self.allocated_action = False
 
     def move_agent_to_target(self, agent, target, pace=1.0):
+        # logging.info("Agent " + str(agent.index) + " location: " + str(agent.get_position()) + " and target: " + str(target))
         if abs(agent.get_position()[0] - target[0]) < 1e-10:
             theta = 0
         else:
             slope = get_slope(target[0], target[1], agent.get_position()[0], agent.get_position()[1])
+            # logging.info("Got slope: " + str(slope))
             theta = math.atan(slope)
 
         factor = -1 if agent.get_position()[0] > target[0] else 1
+        # logging.info("Setting action: " + str(np.array([math.cos(theta), math.sin(theta)]) * factor * pace))
         agent.action = np.array([math.cos(theta), math.sin(theta)]) * factor * pace
 
     def is_on_target(self):
@@ -184,12 +187,16 @@ class AgentCluster(object):
         center = self.get_center()
         num_agents = len(self.agents)
         idx = list(self.agents.keys())[0]
-        min_rad = self.agents[idx].min_obs_rad + 0.3
-        jump_size =  360 / (num_agents - 1)
+        max_rad = self.agents[idx].max_obs_rad
+        jump_size =  360 / (num_agents)
+        targets = []
 
         for num, agent in enumerate(self.agents.values()):
-            target = np.array([center[0] + min_rad * math.cos(jump_size * num),
-                               center[1] + min_rad * math.sin(jump_size * num)])
+            angle = to_rad(jump_size * num)
+            target = np.array([center[0] + (max_rad / 2) * math.cos(angle),
+                               center[1] + (max_rad / 2) * math.sin(angle)])
+
+            targets.append(target)
             dist = euclidean_dist(agent.get_position(), target)
             # Pace was d / 4
             self.move_agent_to_target(agent, target, pace=min(dist, 1.0))
@@ -279,11 +286,12 @@ class AgentCluster(object):
         final_total = int(1 + (agents_per_minrad_ring * (1 + num_rings) * num_rings / 2))
         leftovers = num_agents - final_total
         # print("Leftovers: ", leftovers)
-        jump = 360 / (leftovers - 1) if leftovers > 1 else 0
+        jump = 360 / (leftovers) if leftovers > 0 else 0
         start =  num_rings * EPSILON
         for i in range(leftovers):
-            locations.append(np.array([center[0] + (num_rings + 1) * min_rad * math.cos(start + jump * i),
-                                       center[1] + (num_rings + 1) * min_rad * math.sin(start + jump  * i)]))
+            angle = to_rad(start + jump * i)
+            locations.append(np.array([center[0] + (num_rings + 1) * (max_rad / 2) * math.cos(angle),
+                                       center[1] + (num_rings + 1) * (max_rad / 2) * math.sin(angle)]))
             # locations.append(center)
 
         # Each ring multiplies by size based on it's radius from the center.
@@ -294,11 +302,12 @@ class AgentCluster(object):
 
 
         for ring in range(num_rings):
-            jump = 360 / (rings_sizes[ring] - 1)
+            jump = 360 / (rings_sizes[ring])
             start = ring * EPSILON
             for i in range(rings_sizes[ring]):
-                locations.append(np.array([center[0] + (ring + 1) * min_rad * math.cos(start + jump * i),
-                                           center[1] + (ring + 1) * min_rad * math.sin(start + jump * i)]))
+                angle = to_rad(start + jump * i)
+                locations.append(np.array([center[0] + (ring + 1) * (max_rad / 2) * math.cos(angle),
+                                           center[1] + (ring + 1) * (max_rad / 2) * math.sin(angle)]))
 
         for idx, agent in enumerate(self.agents.values()):
             d = euclidean_dist(agent.get_position(), locations[idx])
@@ -351,9 +360,12 @@ class AgentCluster(object):
         Adapt to a certain formation based on the amount of agents in the formation.
         :return:
         """
-        msc_size = 9
+        if len(self.agents) == 0:
+            return
+
+        agent = self.agents[list(self.agents.keys())[0]]
+        msc_size = get_max_stable_cycle_size(agent.min_obs_rad, agent.max_obs_rad)
         if self.target_loc is not None and self.is_on_target():
-            # print("Removing target")
             self.target_loc = None
         if len(self.agents) <= msc_size:
             self.msc = True
@@ -364,6 +376,37 @@ class AgentCluster(object):
             self.onion = True
             self.create_onion_structure()
 
+    def msc_converged(self):
+        """
+        Check if the msc converged by running the algorithm that creates the msc and checking that there is
+        an agent allocated in each target location.
+        :return:
+        """
+        if len(self.agents) < 3:
+            return
+
+        center = self.get_center()
+        num_agents = len(self.agents)
+        idx = list(self.agents.keys())[0]
+        max_rad = self.agents[idx].max_obs_rad
+        jump_size =  360 / (num_agents)
+
+        allocated = []
+        for num in range(len(self.agents.values())):
+            angle = to_rad(jump_size * num)
+            target = np.array([center[0] + (max_rad / 2) * math.cos(angle),
+                               center[1] + (max_rad / 2) * math.sin(angle)])
+
+
+            for agent in self.agents.values():
+                if agent.index not in allocated and euclidean_dist(target, agent.get_position()) < 1e-2:
+                    allocated.append(agent.index)
+
+        return len(allocated) == len(self.agents)
+
+
+
+
 
     def did_converge(self):
         """
@@ -373,7 +416,7 @@ class AgentCluster(object):
         :return:
         """
         if self.msc:
-            return self.converged_to_msc()
+            return self.msc_converged()
         elif self.onion:
             return self.converged_onion()
         else:

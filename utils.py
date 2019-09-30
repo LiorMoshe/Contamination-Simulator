@@ -234,3 +234,6 @@ def euclidean_dist(first, second):
 
 def get_max_stable_cycle_size(min_rad, max_rad):
     return math.floor(2 * math.pi / (math.acos(1 - (2 * min_rad ** 2) / (max_rad ** 2))))
+
+def to_rad(angle):
+    return angle * math.pi / 180
