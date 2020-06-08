@@ -32,6 +32,10 @@ class GlobalActor(object):
                               ClusterManager.instance.get_contaminated_clusters(), global_state)
 
     def gather_conquer_act(self):
+        """
+        Act according to the GC heuristic (more info in proposal).
+        :return:
+        """
         healthy_clusters = ClusterManager.instance.get_healthy_clusters()
         contaminated_clusters = ClusterManager.instance.get_contaminated_clusters()
 
@@ -284,13 +288,6 @@ class GlobalActor(object):
                 closest_cluster = closest_cluster_to(gathered_cluster.get_center(), contaminated_clusters)
                 gathered_cluster.move_to_target(contaminated_clusters[closest_cluster].get_center(),
                                                 cluster_id=closest_cluster)
-    #
-    # def onion_heuristic(self, global_state):
-    #     healthy_cluster = ClusterManager.instance.get_healthy_clusters()
-    #     contaminated_clusters
-
-
-
 
     def second_heuristic(self, global_state):
         """
@@ -370,3 +367,26 @@ class GlobalActor(object):
                     chosen_cluster = max(priority_map.items(), key=itemgetter(1))[0]
                     healthy_cluster.move_to_target(contaminated_clusters[chosen_cluster].get_center(),
                                                    cluster_id=chosen_cluster)
+
+    def attack_defense_heuristic(self, global_state):
+        """
+        This is the final improved heuristic which uses the knowledge established
+        from previous work.
+        The idea is to have to different states for each cluster, ATTACK and DEFENSE.
+        In defense mode we gather the agents in a monotonic component with a high wpc value
+        while exploring the space of the game freely.
+        When meeting another component we will always merge it with our current component.
+        :return:
+        """
+
+        healthy_clusters = ClusterManager.instance.get_healthy_clusters()
+
+        for cluster in healthy_clusters:
+            if cluster.get_mode() == "A":
+                # In attack mode acquire target and send the required cliques of agents to conquer it.
+
+                pass
+            else:
+                # In defense mode, gather in a monotonic component to make agents as safe as possible.
+                # TODO - Don't need to perform full computation of monotonic heuristic again and again.
+                pass

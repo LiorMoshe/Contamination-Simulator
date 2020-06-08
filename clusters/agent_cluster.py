@@ -2,10 +2,15 @@ from utils import get_slope, euclidean_dist, get_max_stable_cycle_size, to_rad
 import math
 import numpy as np
 import logging
+from collections import namedtuple
+import random
+from defense.monotonic_iterator import MonotonicIterator
+
+DefenseState = namedtuple("DefenseState", "fence_size, edge_length,")
 
 class AgentCluster(object):
 
-    def __init__(self, id, agents, enemy=False):
+    def __init__(self, id, agents, smin, smax, robot_radius, enemy=False):
         logging.info("Creating new cluster with id: " + str(id) + "  enemys: " + str(enemy))
         self._id = id
         self.agents = agents
@@ -14,12 +19,52 @@ class AgentCluster(object):
         self.target_loc = None
         self.onion = False
         self.msc = False
+        self.smin = smin
+        self.smax = smax
+        self.robot_radius = robot_radius
+        self.mode = "D"
+        self.target_cluster = None
 
+
+        self.msc_size = math.floor((math.pi * self.smax) / ((self.smax / 2) *
+                                                            math.acos(1 - (2 * (self.smin ** 2)) / (self.smax ** 2))))
         self.moving = False
         self.prev_dist = float('inf')
+        self.defense_state = None
+        self.defender = MonotonicIterator(len(agents), smin, smax, robot_radius)
 
         for agent in self.agents.values():
             agent.allocate(self)
+
+    def switch_to_attack(self, target_cluster):
+        self.mode = "A"
+        self.target_cluster = target_cluster
+
+    def switch_to_defense(self):
+        self.mode = "D"
+
+    def act_defense(self):
+        """
+        This method is activated when we are in defense mode and there are no agents that we can merge
+        with that are close to us.
+        In that case we wish to become as safe as possible and if we are safe we move randomly through
+        the game's space.
+        :return:
+        """
+        if len(self.agents) <= self.msc_size:
+            if not self.did_converge():
+                self.stabilize_structure()
+            else:
+                #
+                self.explore()
+        elif not self.defender.did_converge():
+            self.defender.iterate()
+        else:
+            # Move randomly in a formation.
+            self.explore()
+
+    def get_mode(self):
+        return self.mode
 
     def size(self):
         return len(self.agents)
@@ -201,6 +246,24 @@ class AgentCluster(object):
             # Pace was d / 4
             self.move_agent_to_target(agent, target, pace=min(dist, 1.0))
 
+
+    def explore(self):
+        """
+        Move the whole formation toward a random location.
+        :return:
+        """
+        # todo- Decide how should we choose the random target, currently its toward a random location.
+        curr_center = self.get_center()
+        max_dist = float('-inf')
+        for agent in self.agents:
+            curr_dist = euclidean_dist(agent.get_position(), curr_center)
+            if curr_dist < max_dist:
+                max_dist = curr_dist
+
+        angle = random.random * math.pi * 2
+        self.move_in_formation(np.array([curr_center[0] + 1.5*max_dist * math.cos(angle),
+                                         curr_center[1] + 1.5 * max_dist * math.sin(angle)]))
+
     def move_in_formation(self, target):
         """
         Observe the current formation of robots, give each one an assigned vector of movements such that the formation
@@ -259,6 +322,15 @@ class AgentCluster(object):
         return True
 
 
+    @staticmethod
+    def  compute_cycle_size(min_rad, max_rad, cycle_size):
+        """
+        :param self:
+        :return:
+        """
+        theta = math.acos(1 - (2 * min_rad ** 2) / (max_rad ** 2))
+        return math.floor( 2  * math.pi / theta)
+
     def create_onion_structure(self):
         """
         Create a structure of several layers which is somewhat similar to an onion.
@@ -271,7 +343,7 @@ class AgentCluster(object):
         num_agents = len(self.agents)
         idx = list(self.agents.keys())[0]
         center = self.get_center()
-        locations = [center]
+        locations = []
         min_rad = self.agents[idx].min_obs_rad
         max_rad = self.agents[idx].max_obs_rad
         agents_per_minrad_ring = min(get_max_stable_cycle_size(min_rad, max_rad), len(self.agents) - 1)
@@ -284,20 +356,30 @@ class AgentCluster(object):
             total = 1 + (agents_per_minrad_ring * (2 + num_rings) * (num_rings + 1) / 2)
 
         final_total = int(1 + (agents_per_minrad_ring * (1 + num_rings) * num_rings / 2))
-        leftovers = num_agents - final_total
-        # print("Leftovers: ", leftovers)
-        jump = 360 / (leftovers) if leftovers > 0 else 0
-        start =  num_rings * EPSILON
-        for i in range(leftovers):
-            angle = to_rad(start + jump * i)
-            locations.append(np.array([center[0] + (num_rings + 1) * (max_rad / 2) * math.cos(angle),
-                                       center[1] + (num_rings + 1) * (max_rad / 2) * math.sin(angle)]))
-            # locations.append(center)
 
         # Each ring multiplies by size based on it's radius from the center.
         rings_sizes = []
         for i in range(num_rings):
             rings_sizes.append(agents_per_minrad_ring * (i + 1))
+        # rings_sizes = [agents_per_minrad_ring]
+        # for i in range(1, num_rings):
+        #     rings_sizes.append(self.compute_cycle_size(min_rad, min_rad, i))
+
+        # print("Ring sizes: " + str(rings_sizes))
+
+        leftovers = num_agents - final_total + 1
+        # print("Leftovers: ", leftovers)
+        if leftovers > 0:
+            jump = 360 / (rings_sizes[num_rings - 1] + rings_sizes[0])
+        else:
+            jump = 0
+        # jump = 360 / (leftovers) if leftovers > 0 else 0
+        start =  num_rings * EPSILON
+        for i in range(leftovers):
+            angle = to_rad(start + jump * i)
+            locations.append(np.array([center[0] + (max_rad / 2 + (num_rings) * (min_rad)) * math.cos(angle),
+                                       center[1] + (max_rad / 2  + (num_rings) * (min_rad)) * math.sin(angle)]))
+            # locations.append(center)
 
 
 
@@ -306,15 +388,16 @@ class AgentCluster(object):
             start = ring * EPSILON
             for i in range(rings_sizes[ring]):
                 angle = to_rad(start + jump * i)
-                locations.append(np.array([center[0] + (ring + 1) * (max_rad / 2) * math.cos(angle),
-                                           center[1] + (ring + 1) * (max_rad / 2) * math.sin(angle)]))
+                # locations.append(np.array([center[0] + (ring + 1) * (max_rad / 2) * math.cos(angle),
+                #                            center[1] + (ring + 1) * (max_rad / 2) * math.sin(angle)]))
+                locations.append(np.array([center[0] + (max_rad / 2 + (ring) * (min_rad)) * math.cos(angle),
+                                           center[1] + (max_rad / 2 + (ring) * (min_rad)) * math.sin(angle)]))
 
         for idx, agent in enumerate(self.agents.values()):
             d = euclidean_dist(agent.get_position(), locations[idx])
             self.move_agent_to_target(agent, locations[idx], pace= min(1.0, d))
 
         self.onion = True
-
     def stop(self):
         """
         Stop the cluster completely.
@@ -430,3 +513,6 @@ class AgentCluster(object):
         center = self.get_center()
         self.move_to_target(center)
 
+if __name__=="__main__":
+    size = AgentCluster.compute_cycle_size(3, 9,0.5)
+    print(size)

@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import shutil
 from collections import namedtuple
 import matplotlib.transforms as mtrans
-from simulation_data import SimulationData, represent_as_box_plot
+from simulation_data import SimulationData, represent_as_box_plot, to_dataframe
 from global_actor import GlobalActor
 import logging
 from clusters.cluster_manager import ClusterManager
@@ -38,7 +38,7 @@ class ContaminationEnv(Env):
         self.torus = torus
         self.world = base.World(world_size, torus, dynamics)
         self.global_actor = GlobalActor(min_obs_rad, max_obs_rad)
-        ClusterManager(self.max_obs_rad)
+        ClusterManager(self.min_obs_rad, self.max_obs_rad, 0.1)
         self.reset()
 
 
@@ -241,10 +241,13 @@ class ContaminationEnv(Env):
         else:
             # Compute the clusters which will be used by the global players.
             ClusterManager.instance.update_clusters(self.global_state)
+            # self.global_actor.gather_conquer_act()
             self.global_actor.strategic_movement(self.global_state)
+            # self.global_actor.attack_defense_heuristic(self.global_state)
 
 
 
+        # This is where the opponent chooses its move.
         self.world.step(self.global_state)
         next_observations = self.get_observations(transition=True)
 
@@ -256,7 +259,6 @@ class ContaminationEnv(Env):
 
         # TODO- Inspect different reward mechanisms.
         reward = 1
-
         info = {'healthy_states': self.world.healthy_states,
                 'contaminated_states': self.world.contaminated_states,
                 # 'state': np.vstack([self.world.healthy_states[:, 0:2], self.world.contaminated_states[:, :2]]),
@@ -284,8 +286,8 @@ class ContaminationEnv(Env):
 
 
 if __name__=="__main__":
-    env = ContaminationEnv(9, 0, 100, 2, 6, stop_on_win=False)
-    num_episodes = 1
+    env = ContaminationEnv(30, 30, 100, 2, 6, stop_on_win=True)
+    num_episodes = 20
 
     simulations_data = []
 
@@ -304,4 +306,4 @@ if __name__=="__main__":
             env.render(debug=False)
 
     # Use to represent data in series of box plots.
-    # represent_as_box_plot(simulations_data)
+    # represent_as_box_plot(to_dataframe(simulations_data, save=True))

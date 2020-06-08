@@ -12,14 +12,16 @@ class ClusterManager(object):
 
     instance = None
 
-    def __init__(self, max_obs_rad):
+    def __init__(self, smin, smax, robot_radius):
         if not ClusterManager.instance:
-            ClusterManager.instance = ClusterManager.__ClusterManager(max_obs_rad)
+            ClusterManager.instance = ClusterManager.__ClusterManager(smin, smax, robot_radius)
 
     class __ClusterManager(object):
 
-        def __init__(self, max_obs_rad):
-            self.max_obs_rad = max_obs_rad
+        def __init__(self, smin, smax, robot_radius):
+            self.smin = smin
+            self.smax = smax
+            self.robot_radius = robot_radius
             self.reset()
 
         def reset(self):
@@ -33,9 +35,9 @@ class ClusterManager(object):
             self.clean_all_enemy()
 
             self.find_clusters(global_state.healthy_agents, self._healthy_clusters, global_state.distance_matrix,
-                         2 * self.max_obs_rad)
+                               2 * self.smax)
             self.find_clusters(global_state.contaminated_agents, self._contaminated_clusters, global_state.distance_matrix,
-                          2 * self.max_obs_rad, enemy=True)
+                               2 * self.smax, enemy=True)
 
         def clean_all_enemy(self):
             for cluster in self._contaminated_clusters.values():
@@ -111,7 +113,8 @@ class ClusterManager(object):
 
                 global id_counter
                 if create_cluster:
-                    clusters[id_counter] = AgentCluster(id_counter, cluster_agents, enemy=enemy)
+                    clusters[id_counter] = AgentCluster(id_counter, cluster_agents, self.smin, self.smax,
+                                                        self.robot_radius, enemy=enemy)
                     id_counter += 1
 
 

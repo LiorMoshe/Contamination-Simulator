@@ -63,7 +63,7 @@ def onion_gathering(healthy_clusters, global_state):
 def maximal_stable_cycles(healthy_clusters,  contaminated_clusters, global_state):
     """
     Gather everyone together and then split into maximal stable cycles. Variant of the idea of gather and conquer.
-    But always move in the form of a stabel cycle.
+    But always move in the form of a stable cycle.
     :param healthy_clusters:
     :param global_state:
     :return:

@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import math
 
 TIMESTAMP = 'Timestamp'
 NUMHEALTHY = 'Number of Healthy Agents'
@@ -70,12 +71,7 @@ class SimulationData(object):
         """
         pass
 
-def represent_as_box_plot(simulations):
-    """
-    Given several simulation data, represent the data at each timestamp as a box plot.
-    :param simulations:
-    :return:
-    """
+def to_dataframe(simulations, save=False, name="Sim.csv"):
     max_length = 0
     win_count = 0
     for simulation in simulations:
@@ -94,18 +90,36 @@ def represent_as_box_plot(simulations):
             if timestamp % jumps == 0:
                 data.append([timestamp, num_healthy])
 
-
     df = pd.DataFrame(data, columns=[TIMESTAMP, NUMHEALTHY])
-    max_time = df.loc[df[TIMESTAMP].idxmax()][TIMESTAMP]
+    if save:
+        df.to_csv(name)
+    return df
 
-    boxplot_ranges = np.arange(0, max_time, int(max_time / 40))
+
+def represent_as_box_plot(df):
+    """
+    Given several simulation data, represent the data at each timestamp as a box plot.
+    :param df: Pandas dataframe of the data
+    :return:
+    """
+    max_time = df.loc[df[TIMESTAMP].idxmax()][TIMESTAMP]
+    max_time = 700
+    boxplot_ranges = np.arange(0, max_time, 20)
+    print(boxplot_ranges)
     print("Number of boxplots: " + str(boxplot_ranges.shape))
+    print(len(df[TIMESTAMP]))
     limited_df = df.loc[df[TIMESTAMP].isin(boxplot_ranges)]
+    # limited_df = limited_df.loc[::2]
 
     # print(df)
     # sns.swarmplot(x="Timestamp", y="NumHealthy", data=df)
     boxplot = sns.boxplot(x=TIMESTAMP, y=NUMHEALTHY, data=limited_df, color='aqua')
-    plt.xticks(fontsize=8)
+    plt.xlabel("Time Step", fontsize=12)
+    plt.ylabel(NUMHEALTHY, fontsize=12)
+    plt.xticks(fontsize=9)
+    # plt.xlabel.
+    # plt.ylabel(fontsize=12)
+    plt.yticks(fontsize=9)
 
     # boxplot.set_xticks(np.arange(0, max_time, int(max_time / 30)))
     # boxplot.set_xticklabels(np.arange(0, max_time, int(max_time / 30)))
@@ -117,9 +131,5 @@ def represent_as_box_plot(simulations):
 
 
 if __name__ == "__main__":
-    sim_data = SimulationData()
-    for i in range(100):
-        x = random.randint(0, 50)
-        sim_data.add_data(i, x, 50 - x)
-
-    sim_data.plot()
+    df = pd.read_csv("no_flats_gc_potential_100_sim.csv")
+    represent_as_box_plot(df)

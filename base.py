@@ -172,11 +172,13 @@ class World(object):
         #         next_coord = np.where(next_coord > self.world_size, self.world_size, next_coord)
         #     agent.set_position(next_coord)
 
-            # self.contaminated_states[i, :] = agent.get_state()
-
+        #     # self.contaminated_states[i, :] = agent.get_state()
+        #
         if len(self.healthy_agents) > 0:
             self.move_agents(agents=self.healthy_agents)
 
+
+        # Decides on strategy of the adversary.
         self.adversary.gather_and_conquer()
         if len(self.contaminated_agents) > 0:
             self.move_agents(agents=self.contaminated_agents, save_nodes=False)
