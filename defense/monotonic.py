@@ -16,6 +16,7 @@ from defense.defense_utils import get_intersections, can_source_see_target, get_
 from utils import euclidean_dist
 import math
 import numpy as np
+import time
 import copy
 
 
@@ -40,16 +41,16 @@ def get_internal_locations(observers, smin, smax, center, limit_dist, robot_radi
                     total_positions.append((pos[0], pos[1]))
     return total_positions
 
-loc_times = 0
-total_loc = 0.
+# loc_times = 0
+# total_loc = 0.
 def get_possible_locations_in_enclosed_area(fence, smin, smax, center, dist_from_center, robot_radius, taken=[]):
     """
     Get all the locations in thee enclosed area.
     """
-    global loc_times
-    global total_loc
-    start = time.time()
-    loc_times += 1
+    # global loc_times
+    # global total_loc
+    # start = time.time()
+    # loc_times += 1
     total_positions = []
 
     # Compute the intersection points and draw circles from them.
@@ -111,7 +112,7 @@ def get_possible_locations_in_enclosed_area(fence, smin, smax, center, dist_from
 
                 if is_valid:
                     total_positions.append(pos)
-    total_loc += time.time() - start
+    # total_loc += time.time() - start
     return total_positions
 
 
@@ -127,13 +128,9 @@ def greedy_placement(num_agents, fence, locations, smin, smax, robot_radius):
     :param robot_radius:
     :return:
     """
-    global greedy_times
-    global total_greedy
-    start = time.time()
-    greedy_times += 1
     taken = copy.deepcopy(fence)
     total_val = 0
-    while num_agents >= 0:
+    while num_agents > 0:
         # print("Greedy num agents: {0}".format(num_agents))
         best_value = float('-inf')
         best_locations = []
@@ -206,7 +203,6 @@ def greedy_placement(num_agents, fence, locations, smin, smax, robot_radius):
         else:
             break
 
-    total_greedy += time.time() - start
     return taken, total_val
 
 

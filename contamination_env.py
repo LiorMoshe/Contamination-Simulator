@@ -80,11 +80,11 @@ class ContaminationEnv(Env):
         max_obs_circles = []
 
         if self.world.contaminated_states is not None:
-            self.plot.scatter(self.world.contaminated_states[:, 0], self.world.contaminated_states[:, 1], c='r', s=10,
+            self.plot.scatter(self.world.contaminated_states[:, 0], self.world.contaminated_states[:, 1], c='r', s=1,
                               zorder=2)
 
         if len(self.world.healthy_agents) > 0:
-            self.plot.scatter(self.world.healthy_states[:, 0], self.world.healthy_states[:, 1], c='b', s=10,
+            self.plot.scatter(self.world.healthy_states[:, 0], self.world.healthy_states[:, 1], c='b', s=0.25,
                               zorder=2)
 
         for i in range(self.num_healthy + self.num_contaminated):
@@ -242,8 +242,8 @@ class ContaminationEnv(Env):
             # Compute the clusters which will be used by the global players.
             ClusterManager.instance.update_clusters(self.global_state)
             # self.global_actor.gather_conquer_act()
-            self.global_actor.strategic_movement(self.global_state)
-            # self.global_actor.attack_defense_heuristic(self.global_state)
+            # self.global_actor.strategic_movement(self.global_state)
+            self.global_actor.attack_defense_heuristic(self.global_state)
 
 
 
@@ -286,7 +286,7 @@ class ContaminationEnv(Env):
 
 
 if __name__=="__main__":
-    env = ContaminationEnv(30, 30, 100, 2, 6, stop_on_win=True)
+    env = ContaminationEnv(20, 0, 100, 2, 6, stop_on_win=False)
     num_episodes = 20
 
     simulations_data = []

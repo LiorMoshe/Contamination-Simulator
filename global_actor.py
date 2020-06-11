@@ -280,7 +280,6 @@ class GlobalActor(object):
             gathered_cluster = list(healthy_clusters.values())[0]
 
             if gathered_cluster.has_weak_point(global_state):
-                logging.info("Densified")
                 gathered_cluster.densify()
 
             # Once we have one big cluster start conquering other enemy clusters which are closest to you.
@@ -380,13 +379,27 @@ class GlobalActor(object):
         """
 
         healthy_clusters = ClusterManager.instance.get_healthy_clusters()
+        contaminated_clusters = ClusterManager.instance.get_contaminated_clusters()
 
-        for cluster in healthy_clusters:
-            if cluster.get_mode() == "A":
+        defending_cluster_ids = []
+        centers = []
+
+        for cluster_id in healthy_clusters:
+            curr_cluster = healthy_clusters[cluster_id]
+            if curr_cluster.get_mode() == "A":
                 # In attack mode acquire target and send the required cliques of agents to conquer it.
-
-                pass
+                # cluster.explore()
+                curr_cluster.act_attack()
             else:
-                # In defense mode, gather in a monotonic component to make agents as safe as possible.
-                # TODO - Don't need to perform full computation of monotonic heuristic again and again.
-                pass
+                defending_cluster_ids.append(cluster_id)
+                # # In defense mode, gather in a monotonic component to make agents as safe as possible.
+                # # TODO - Don't need to perform full computation of monotonic heuristic again and again.
+                # cluster.act_defense()
+                centers.append(curr_cluster.get_center())
+
+        defense_center = np.sum(np.vstack([center for center in centers]), axis=0) / len(centers)
+        print("Number of defending clusters: {0}".format(len(defending_cluster_ids)))
+        for cluster_id in defending_cluster_ids:
+            healthy_clusters[cluster_id].act_defense(target=defense_center)
+
+

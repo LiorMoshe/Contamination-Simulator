@@ -1,6 +1,9 @@
 # form utils import euclidean_dist
 import math
 
+from utils import euclidean_dist
+
+
 def is_concealed_by_agents(source, target, agent_set, robot_radius):
     """
     Check if the given target is concealed from the source by the one of the agents in the agent set.

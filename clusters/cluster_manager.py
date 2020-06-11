@@ -1,7 +1,6 @@
-from .agent_cluster import AgentCluster
+from clusters.agent_cluster import AgentCluster
 import numpy as np
 from utils import euclidean_dist
-import logging
 
 id_counter = 1
 
@@ -39,6 +38,14 @@ class ClusterManager(object):
             self.find_clusters(global_state.contaminated_agents, self._contaminated_clusters, global_state.distance_matrix,
                                2 * self.smax, enemy=True)
 
+        def get_num_agents(self, cluster_id):
+            if cluster_id in self._healthy_clusters:
+                return self._healthy_clusters[cluster_id].get_num_agents()
+            elif cluster_id in self._contaminated_clusters:
+                return self._contaminated_clusters[cluster_id].get_num_agents()
+            else:
+                raise Exception("Cluster {0} is not saved in the ClusterManager!".format(cluster_id))
+
         def clean_all_enemy(self):
             for cluster in self._contaminated_clusters.values():
                 cluster.free_all()
@@ -60,6 +67,23 @@ class ClusterManager(object):
 
         def get_contaminated_clusters(self):
             return self._contaminated_clusters
+
+        def add_healthy_cluster(self, cluster):
+            self._healthy_clusters[cluster.get_index()] = cluster
+
+        def add_contaminated_cluster(self, cluster):
+            self._contaminated_clusters[cluster.get_index()] = cluster
+
+        def remove_healthy_cluster(self, cluster_id):
+            del self._healthy_clusters[cluster_id]
+
+        def remove_contaminated_cluster(self, cluster_id):
+            del self._contaminated_clusters[cluster_id]
+
+        def allocate_cluster(self, agents):
+            global id_counter
+            id_counter+=1
+            return AgentCluster(id_counter, agents, self.smin, self.smax, self.robot_radius, enemy=False)
 
         def find_clusters(self, agents, clusters, distance_matrix, radius, enemy=False):
             """
@@ -89,7 +113,6 @@ class ClusterManager(object):
                         agent.free()
                 # cluster_agents = {idx: agent} if not agent.is_allocated() \
                 #     else clusters[agent.get_cluster_id()].agents
-
                 create_cluster = False
                 for agent_idx, dist, cluster_id in distances:
                     if dist < radius:
@@ -100,8 +123,9 @@ class ClusterManager(object):
                         # Merge two clusters together if possible.
                         if cluster_id is not None and agent.is_allocated() and cluster_id in clusters:
                             if clusters[agent.get_cluster_id()].mergeable(clusters[cluster_id]):
-                                clusters[agent.get_cluster_id()].merge(clusters[cluster_id])
-                                del clusters[cluster_id]
+                                res = clusters[agent.get_cluster_id()].merge(clusters[cluster_id])
+                                if res:
+                                    del clusters[cluster_id]
 
                         elif cluster_id is not None and cluster_id in clusters:
                             clusters[cluster_id].add_agent(agent)
@@ -124,12 +148,14 @@ class ClusterManager(object):
                     for second_cluster in clusters.values():
                         if first_cluster.get_index() != second_cluster.get_index() and \
                             euclidean_dist(first_cluster.get_center(), second_cluster.get_center()) < 1:
-                            first_cluster.merge(second_cluster)
-                            to_be_removed.append(second_cluster.get_index())
+                            res = first_cluster.merge(second_cluster)
+                            if res:
+                                to_be_removed.append(second_cluster.get_index())
 
                 # logging.info("Clusters to be removed: " + str(to_be_removed))
                 for index in set(to_be_removed):
                     del clusters[index]
+
 
 
 

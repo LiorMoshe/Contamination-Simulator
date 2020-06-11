@@ -1,3 +1,4 @@
+
 from utils import get_slope, euclidean_dist, get_max_stable_cycle_size, to_rad
 import math
 import numpy as np
@@ -14,6 +15,7 @@ class AgentCluster(object):
         logging.info("Creating new cluster with id: " + str(id) + "  enemys: " + str(enemy))
         self._id = id
         self.agents = agents
+        print("My agents: ", self.agents)
         self.enemy = enemy
         self.allocated_action = False
         self.target_loc = None
@@ -43,7 +45,57 @@ class AgentCluster(object):
     def switch_to_defense(self):
         self.mode = "D"
 
-    def act_defense(self):
+    def get_num_agents(self):
+        return len(self.agents)
+
+    def deploy_agents(self, num_agents, target_loc):
+        """
+        Deploy a subset of agents toward the target location. This will split our cluster.
+        :param num_agents:
+        :param target_loc:
+        :return:
+        """
+        from clusters.cluster_manager import ClusterManager
+        if num_agents > len(self.agents):
+            raise("Exception: Asked to deploy {0} agents when there are only {1} agents".format(num_agents,
+                                                                                                len(self.agents)))
+
+        print("Deploying agents.")
+        deployed = list(self.agents.keys())[:num_agents]
+        deployed_agents = {}
+        for idx in deployed:
+            self.agents[idx].free()
+            deployed_agents[idx] = self.agents[idx]
+            del self.agents[idx]
+
+        print("My agents: {0}".format(self.agents))
+        print("Deployed: {0}".format(deployed_agents))
+        new_cluster = ClusterManager.instance.allocate_cluster(deployed_agents)
+        # todo- This is only implemented for healthy agents.
+        ClusterManager.instance.add_healthy_cluster(new_cluster)
+        new_cluster.mode = "A"
+        new_cluster.create_msc()
+        new_cluster.target_loc = target_loc
+        print("New Cluster: {0}, Target: {1}".format(new_cluster.get_index(), new_cluster.target_loc))
+        # new_cluster.move_in_formation(target=target_loc)
+
+    def act_attack(self):
+        """
+        Act according to the attack strategy.
+        Move to the given target.
+        :return:
+        """
+        print("Act attack, target: {0}, Cluster: {1}".format(self.target_loc, self._id))
+        if self.is_on_target():
+            self.mode = "D"
+        else:
+            if not self.did_converge():
+                self.stabilize_structure()
+            else:
+                self.move_in_formation(self.target_loc)
+
+
+    def act_defense(self, target):
         """
         This method is activated when we are in defense mode and there are no agents that we can merge
         with that are close to us.
@@ -51,17 +103,37 @@ class AgentCluster(object):
         the game's space.
         :return:
         """
+        if (len(self.agents) == 1):
+            self.move_in_formation(target)
+
         if len(self.agents) <= self.msc_size:
             if not self.did_converge():
                 self.stabilize_structure()
             else:
-                #
-                self.explore()
+                # Explore if we converged.
+                # print("Sent clique to explore")
+                self.move_in_formation(target=target)
+                # self.explore()
         elif not self.defender.did_converge():
-            self.defender.iterate()
+            print("Iterated, NAgents: {0}, Defender Agents: {1}".format(len(self.agents), self.defender.num_agents))
+            # self.defender.update_num_agents(len(self.agents))
+            self.defender.num_agents = len(self.agents)
+            print("Defender Agents: {0}".format(self.defender.num_agents))
+            self.defender.update_center(self.get_center())
+            res = self.defender.iterate()
+            if res:
+                print("Moving agents to target locations, best value: {0}".format(self.defender.best_value))
+                print("Locations: {0}, Agents: {1}".format(len(self.defender.get_locations()), len(self.agents)))
+                print("Moving to locations: {0}".format(self.defender.get_locations()))
+                self.move_agents_to_targets(self.defender.get_locations())
         else:
+            print("Larger than clique explored")
+            # self.stop()
             # Move randomly in a formation.
-            self.explore()
+            self.deploy_agents(num_agents=5, target_loc=np.array([90,90]))
+            self.stop()
+            # self.move_in_formation(target=np.array([0,0]), pace=0.1)
+            # self.explore()
 
     def get_mode(self):
         return self.mode
@@ -73,7 +145,9 @@ class AgentCluster(object):
         return any(agent.index == agent_index for agent in self.agents.values())
 
     def add_agent(self, agent):
-        self.target_loc = None
+        print("None target, cluster id: {0}".format(self._id))
+        if not self.mode == "A":
+            self.target_loc = None
         self.agents[agent.index] = agent
 
     def remove_agents(self, agent):
@@ -155,13 +229,14 @@ class AgentCluster(object):
         :param cluster:
         :return:
         """
-
-        for idx, agent in cluster.agents.items():
-            agent.free()
-            agent.allocate(self)
-            self.agents[idx] = agent
-
-        self.target_loc = None
+        if not cluster.mode == "A" and not self.mode == "A":
+            for idx, agent in cluster.agents.items():
+                agent.free()
+                agent.allocate(self)
+                self.agents[idx] = agent
+            self.target_loc = None
+            return True
+        return False
 
     def free_all(self):
         for agent in self.agents.values():
@@ -242,9 +317,18 @@ class AgentCluster(object):
                                center[1] + (max_rad / 2) * math.sin(angle)])
 
             targets.append(target)
-            dist = euclidean_dist(agent.get_position(), target)
+            # dist = euclidean_dist(agent.get_position(), target)
+            # # Pace was d / 4
+            # self.move_agent_to_target(agent, target, pace=min(dist, 1.0))
+
+        self.move_agents_to_targets(targets)
+
+
+    def move_agents_to_targets(self, targets):
+        for num, agent in enumerate(self.agents.values()):
+            dist = euclidean_dist(agent.get_position(), targets[num])
             # Pace was d / 4
-            self.move_agent_to_target(agent, target, pace=min(dist, 1.0))
+            self.move_agent_to_target(agent, targets[num], pace=min(dist, 1.0))
 
 
     def explore(self):
@@ -255,16 +339,17 @@ class AgentCluster(object):
         # todo- Decide how should we choose the random target, currently its toward a random location.
         curr_center = self.get_center()
         max_dist = float('-inf')
-        for agent in self.agents:
+        for agent in self.agents.values():
             curr_dist = euclidean_dist(agent.get_position(), curr_center)
-            if curr_dist < max_dist:
+            if curr_dist > max_dist:
                 max_dist = curr_dist
 
-        angle = random.random * math.pi * 2
-        self.move_in_formation(np.array([curr_center[0] + 1.5*max_dist * math.cos(angle),
-                                         curr_center[1] + 1.5 * max_dist * math.sin(angle)]))
+        angle = random.random() * math.pi * 2
+        target_loc = np.array([curr_center[0] + 1.5*max_dist * math.cos(angle),
+                                         curr_center[1] + 1.5 * max_dist * math.sin(angle)])
+        self.move_in_formation(target=target_loc)
 
-    def move_in_formation(self, target):
+    def move_in_formation(self, target, pace=1.0):
         """
         Observe the current formation of robots, give each one an assigned vector of movements such that the formation
         will be stable. Meaning if have an MSC formation it will be kept as it is even after the movement of the agents.
@@ -279,7 +364,7 @@ class AgentCluster(object):
             dist = euclidean_dist(center, agent.get_position())
 
             agents_target = target + np.array([dist * math.cos(theta), dist * math.sin(theta)])
-            self.move_agent_to_target(agent, agents_target, pace=1.0)
+            self.move_agent_to_target(agent, agents_target, pace=pace)
 
 
     def converged_to_msc(self):
