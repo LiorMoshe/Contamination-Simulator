@@ -1,4 +1,4 @@
-from utils import euclidean_dist
+from utils import euclidean_dist, closest_cluster_to
 from collections import namedtuple
 from clusters.cluster_manager import move_to_clusters_center
 from clusters.cluster_manager import ClusterManager
@@ -12,20 +12,6 @@ Implementation of the gather and conquer heuristic.
 
 # Output of the algorithm.
 Target = namedtuple("Target", "group cluster_id from_loc to_loc")
-
-
-def closest_cluster_to(target, clusters, except_indices=[]):
-    min_dist = float('inf')
-    min_idx = None
-    # clusters = self._enemy_clusters if enemy else self._clusters
-    for idx, cluster in clusters.items():
-        curr_dist = euclidean_dist(cluster.get_center(), target)
-        if curr_dist < min_dist and idx not in except_indices:
-            min_dist = curr_dist
-            min_idx = idx
-
-    return min_idx
-
 
 def onion_gathering(healthy_clusters, global_state):
     if len(healthy_clusters) > 1:
@@ -171,11 +157,14 @@ def gather_and_conquer(healthy_clusters, contaminated_clusters):
 
     cluster_idx_to_size.sort(key=lambda tup: tup[1], reverse=True)
 
+    # Iterate over the enemy clusters by size.
     for cluster_idx, cluster_size in cluster_idx_to_size:
+
+        # Find matching healthy cluster that we can send there.
         for my_cluster in healthy_clusters.values():
 
+            # If the cluster already reached its target, check if its feasible to send it to this one.
             if (my_cluster.target_loc is None or my_cluster.is_on_target()):
-
                 if my_cluster.size() > cluster_size:
                     # Assign a new target.
                     my_cluster.target_loc = contaminated_clusters[cluster_idx].get_center()
@@ -183,6 +172,7 @@ def gather_and_conquer(healthy_clusters, contaminated_clusters):
                                                                  from_loc=my_cluster.get_center(), to_loc=my_cluster.target_loc)
                     logging.debug("Cluster " + str(my_cluster.get_index()) + " got assigned to a new contaminated target"
                                 + " with id " + str(cluster_idx) +  " in location" + str(my_cluster.target_loc))
+                    my_cluster.allocated_action = True
                 else: continue
             else:
                 # If there is currently a target continue until the cluster gets there.
@@ -195,13 +185,15 @@ def gather_and_conquer(healthy_clusters, contaminated_clusters):
                 my_cluster.target_loc = contaminated_clusters[closest_cluster_to_target].get_center()
                 targets[my_cluster.get_index()] = Target(InternalState.CONTAMINATED, closest_cluster_to_target,
                                                          from_loc=my_cluster.get_center(), to_loc=my_cluster.target_loc)
+                my_cluster.allocated_action = True
 
-            my_cluster.allocated_action = True
+            # my_cluster.allocated_action = True
 
 
     # Handle leftovers, direct them to the closest cluster which is ours in order to make them merge.
     for cluster in healthy_clusters.values():
         if not cluster.allocated_action:
+            print("NO ACTION")
             closest_cluster = closest_cluster_to(cluster.get_center(), healthy_clusters,
                                                  except_indices=[cluster.get_index()])
 

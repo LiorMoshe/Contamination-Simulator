@@ -150,6 +150,7 @@ class ContaminationAgent(object):
         :param cluster:
         :return:
         """
+        # print("Allocated agent {0} to cluster {1}".format(self.index, cluster._id))
         self.cluster = cluster
 
     def free(self, notify=False):
@@ -171,6 +172,7 @@ class ContaminationAgent(object):
     def get_cluster_id(self):
         if self.cluster is None:
             return None
+        # print("Agent {0} GetClusterId {1}".format(self.index, self.cluster._id))
         return self.cluster._id
 
     def log_location(self):

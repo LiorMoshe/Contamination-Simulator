@@ -35,7 +35,6 @@ class MonotonicIterator(object):
         component. Update if there is any convergence.
         :return:
         """
-        print("Start Iter")
         current_fence_size = self.fence_size
         passed = False
         changed_locations = False
@@ -95,7 +94,6 @@ class MonotonicIterator(object):
         if (current_fence_size >= self.num_agents):
             self.converged = True
 
-        print("End Iter")
         return changed_locations
 
     def did_converge(self):

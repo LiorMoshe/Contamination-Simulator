@@ -15,7 +15,6 @@ class AgentCluster(object):
         logging.info("Creating new cluster with id: " + str(id) + "  enemys: " + str(enemy))
         self._id = id
         self.agents = agents
-        print("My agents: ", self.agents)
         self.enemy = enemy
         self.allocated_action = False
         self.target_loc = None
@@ -39,8 +38,18 @@ class AgentCluster(object):
             agent.allocate(self)
 
     def switch_to_attack(self, target_cluster):
-        self.mode = "A"
-        self.target_cluster = target_cluster
+        from clusters.cluster_manager import ClusterManager
+
+        adversary = ClusterManager.instance.get_contaminated_cluster(target_cluster)
+        total_agents = adversary.get_num_agents()
+        while total_agents > 0:
+            deployed = min(self.msc_size, total_agents)
+            self.deploy_agents(deployed, target_cluster)
+            total_agents -= deployed
+
+        return len(self.agents) > 0
+        # self.mode = "A"
+        # self.target_cluster = target_cluster
 
     def switch_to_defense(self):
         self.mode = "D"
@@ -48,7 +57,7 @@ class AgentCluster(object):
     def get_num_agents(self):
         return len(self.agents)
 
-    def deploy_agents(self, num_agents, target_loc):
+    def deploy_agents(self, num_agents, target_cluster_id):
         """
         Deploy a subset of agents toward the target location. This will split our cluster.
         :param num_agents:
@@ -57,6 +66,8 @@ class AgentCluster(object):
         """
         from clusters.cluster_manager import ClusterManager
         if num_agents > len(self.agents):
+            print("Exception: Asked to deploy {0} agents when there are only {1} agents".format(num_agents,
+                                                                                                len(self.agents)))
             raise("Exception: Asked to deploy {0} agents when there are only {1} agents".format(num_agents,
                                                                                                 len(self.agents)))
 
@@ -68,15 +79,13 @@ class AgentCluster(object):
             deployed_agents[idx] = self.agents[idx]
             del self.agents[idx]
 
-        print("My agents: {0}".format(self.agents))
-        print("Deployed: {0}".format(deployed_agents))
         new_cluster = ClusterManager.instance.allocate_cluster(deployed_agents)
         # todo- This is only implemented for healthy agents.
         ClusterManager.instance.add_healthy_cluster(new_cluster)
         new_cluster.mode = "A"
         new_cluster.create_msc()
-        new_cluster.target_loc = target_loc
-        print("New Cluster: {0}, Target: {1}".format(new_cluster.get_index(), new_cluster.target_loc))
+        new_cluster.target_loc = ClusterManager.instance.get_contaminated_cluster(target_cluster_id).get_center()
+        # new_cluster.target_cluster = target_cluster_id
         # new_cluster.move_in_formation(target=target_loc)
 
     def act_attack(self):
@@ -85,7 +94,6 @@ class AgentCluster(object):
         Move to the given target.
         :return:
         """
-        print("Act attack, target: {0}, Cluster: {1}".format(self.target_loc, self._id))
         if self.is_on_target():
             self.mode = "D"
         else:
@@ -103,7 +111,7 @@ class AgentCluster(object):
         the game's space.
         :return:
         """
-        if (len(self.agents) == 1):
+        if (len(self.agents) <= 3):
             self.move_in_formation(target)
 
         if len(self.agents) <= self.msc_size:
@@ -115,25 +123,40 @@ class AgentCluster(object):
                 self.move_in_formation(target=target)
                 # self.explore()
         elif not self.defender.did_converge():
-            print("Iterated, NAgents: {0}, Defender Agents: {1}".format(len(self.agents), self.defender.num_agents))
             # self.defender.update_num_agents(len(self.agents))
             self.defender.num_agents = len(self.agents)
-            print("Defender Agents: {0}".format(self.defender.num_agents))
             self.defender.update_center(self.get_center())
             res = self.defender.iterate()
             if res:
-                print("Moving agents to target locations, best value: {0}".format(self.defender.best_value))
-                print("Locations: {0}, Agents: {1}".format(len(self.defender.get_locations()), len(self.agents)))
-                print("Moving to locations: {0}".format(self.defender.get_locations()))
                 self.move_agents_to_targets(self.defender.get_locations())
         else:
-            print("Larger than clique explored")
+            self.move_in_formation(target=target)
             # self.stop()
             # Move randomly in a formation.
-            self.deploy_agents(num_agents=5, target_loc=np.array([90,90]))
-            self.stop()
+            # self.deploy_agents(num_agents=5, target_loc=np.array([90,90]))
+            # self.stop()
             # self.move_in_formation(target=np.array([0,0]), pace=0.1)
             # self.explore()
+
+
+    def get_diameter(self):
+        """
+        The diameter of the cluster is the longest distance between two agents in it.
+        :return:
+        """
+        if (len(self.agents) <= 1):
+            return  0
+        else:
+            max_dist = float('-inf')
+            for first_agent_id in self.agents:
+                for second_agent_id in self.agents:
+                    if first_agent_id != second_agent_id:
+                        dist = euclidean_dist(self.agents[first_agent_id].get_position(),
+                                              self.agents[second_agent_id].get_position())
+                        if dist > max_dist:
+                            max_dist = dist
+            return max_dist
+
 
     def get_mode(self):
         return self.mode
@@ -145,7 +168,6 @@ class AgentCluster(object):
         return any(agent.index == agent_index for agent in self.agents.values())
 
     def add_agent(self, agent):
-        print("None target, cluster id: {0}".format(self._id))
         if not self.mode == "A":
             self.target_loc = None
         self.agents[agent.index] = agent
@@ -229,14 +251,16 @@ class AgentCluster(object):
         :param cluster:
         :return:
         """
-        if not cluster.mode == "A" and not self.mode == "A":
-            for idx, agent in cluster.agents.items():
-                agent.free()
-                agent.allocate(self)
-                self.agents[idx] = agent
+        # print("Cluster Agents InMerge: {0}".format(cluster.agents))
+        for idx, agent in cluster.agents.items():
+            # print("MergingIdx: {0}".format(idx))
+            agent.free()
+            agent.allocate(self)
+            self.agents[idx] = agent
+
+        if self.get_mode() != "A":
             self.target_loc = None
-            return True
-        return False
+        return True
 
     def free_all(self):
         for agent in self.agents.values():
@@ -397,6 +421,14 @@ class AgentCluster(object):
         :param cluster:
         :return:
         """
+
+        # todo - Currently we won't merge attacking clusters, may change in the future.
+        if cluster.get_mode() == "A" or self.get_mode() == "A":
+            return False
+
+        if cluster._id == self._id:
+            return False
+
         if self.msc:
             first_idx = list(self.agents.keys())[0]
             min_rad = self.agents[first_idx].min_obs_rad

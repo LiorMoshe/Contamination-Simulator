@@ -237,3 +237,16 @@ def get_max_stable_cycle_size(min_rad, max_rad):
 
 def to_rad(angle):
     return angle * math.pi / 180
+
+def closest_cluster_to(target, clusters, except_indices=[]):
+    min_dist = float('inf')
+    min_idx = None
+    # clusters = self._enemy_clusters if enemy else self._clusters
+    for idx, cluster in clusters.items():
+        curr_dist = euclidean_dist(cluster.get_center(), target)
+        if curr_dist < min_dist and idx not in except_indices:
+            min_dist = curr_dist
+            min_idx = idx
+
+    return min_idx
+

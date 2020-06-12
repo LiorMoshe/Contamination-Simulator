@@ -34,9 +34,9 @@ class ClusterManager(object):
             self.clean_all_enemy()
 
             self.find_clusters(global_state.healthy_agents, self._healthy_clusters, global_state.distance_matrix,
-                               2 * self.smax)
+                               self.smax)
             self.find_clusters(global_state.contaminated_agents, self._contaminated_clusters, global_state.distance_matrix,
-                               2 * self.smax, enemy=True)
+                               self.smax, enemy=True)
 
         def get_num_agents(self, cluster_id):
             if cluster_id in self._healthy_clusters:
@@ -68,6 +68,10 @@ class ClusterManager(object):
         def get_contaminated_clusters(self):
             return self._contaminated_clusters
 
+
+        def get_contaminated_cluster(self, cluster_id):
+            return self._contaminated_clusters[cluster_id]
+
         def add_healthy_cluster(self, cluster):
             self._healthy_clusters[cluster.get_index()] = cluster
 
@@ -94,13 +98,17 @@ class ClusterManager(object):
             :param enemy Whether we need to find our cluster or enemy's clusters.
             :return:
             """
+            # print("StartFind")
             for idx, agent in agents.items():
 
+                # Compute the distance from each agent
                 distances = []
                 for other_idx, other_agent in agents.items():
-                    distances.append((other_idx, distance_matrix[idx, other_idx],
-                                      other_agent.get_cluster_id()))
+                    if idx != other_idx:
+                        distances.append((other_idx, distance_matrix[idx, other_idx],
+                                          other_agent.get_cluster_id()))
 
+                # Sort the distaces from closest to furthest.
                 distances.sort(key=lambda tup: tup[1])
 
                 # Go over the closest healthy agents and put them together in a cluster.
@@ -111,21 +119,23 @@ class ClusterManager(object):
                         cluster_agents = clusters[agent.get_cluster_id()].agents
                     else:
                         agent.free()
-                # cluster_agents = {idx: agent} if not agent.is_allocated() \
-                #     else clusters[agent.get_cluster_id()].agents
-                create_cluster = False
-                for agent_idx, dist, cluster_id in distances:
-                    if dist < radius:
 
+                create_cluster = False
+                had_close_agent = False
+                for agent_idx, dist, cluster_id in distances:
+
+                    # Take the first agent which is closer than the observation radii.
+                    if dist < radius:
+                        had_close_agent = True
+                        # If the agent is already allocated and the other agent is in its cluster than its fine.
                         if agent.is_allocated() and clusters[agent.get_cluster_id()].has_agent(agent_idx):
                             continue
 
                         # Merge two clusters together if possible.
                         if cluster_id is not None and agent.is_allocated() and cluster_id in clusters:
                             if clusters[agent.get_cluster_id()].mergeable(clusters[cluster_id]):
-                                res = clusters[agent.get_cluster_id()].merge(clusters[cluster_id])
-                                if res:
-                                    del clusters[cluster_id]
+                                clusters[agent.get_cluster_id()].merge(clusters[cluster_id])
+                                del clusters[cluster_id]
 
                         elif cluster_id is not None and cluster_id in clusters:
                             clusters[cluster_id].add_agent(agent)
@@ -135,12 +145,16 @@ class ClusterManager(object):
                             cluster_agents[agent_idx] = agents[agent_idx]
                             create_cluster = True
 
+                    # If there isn't any close agent, create a new cluster for this agent.
+                if not had_close_agent:
+                    create_cluster = True
+                    cluster_agents = {idx: agent}
+
                 global id_counter
                 if create_cluster:
                     clusters[id_counter] = AgentCluster(id_counter, cluster_agents, self.smin, self.smax,
                                                         self.robot_radius, enemy=enemy)
                     id_counter += 1
-
 
                 # Make sure there aren't nearly identical clusters.
                 to_be_removed = []
@@ -148,14 +162,18 @@ class ClusterManager(object):
                     for second_cluster in clusters.values():
                         if first_cluster.get_index() != second_cluster.get_index() and \
                             euclidean_dist(first_cluster.get_center(), second_cluster.get_center()) < 1:
-                            res = first_cluster.merge(second_cluster)
-                            if res:
-                                to_be_removed.append(second_cluster.get_index())
+                            first_cluster.merge(second_cluster)
+                            to_be_removed.append(second_cluster.get_index())
 
                 # logging.info("Clusters to be removed: " + str(to_be_removed))
                 for index in set(to_be_removed):
                     del clusters[index]
 
+
+            # Fix null clusters.
+            for cluster in clusters.values():
+                for agent in cluster.agents.values():
+                    agent.allocate(cluster)
 
 
 

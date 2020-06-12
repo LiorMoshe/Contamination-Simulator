@@ -17,6 +17,7 @@ logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(level
 
 GlobalState = namedtuple("GlobalState", "healthy_agents contaminated_agents distance_matrix angle_matrix")
 
+total_healthy_wins = 0
 
 
 class ContaminationEnv(Env):
@@ -105,15 +106,26 @@ class ContaminationEnv(Env):
         kw = dict(xycoords='data', textcoords='offset points', size=10)
 
         # Use if we wish to plot the number of cluster for each agent group.
-        # for agent in self.world.healthy_agents.values():
-        #
-        #     plot_str = str(agent.get_cluster_id())
-        #     if debug:
-        #         plot_str += " to " + str(agent.target_cluster)
-        #
-        #     rot = mtrans.Affine2D().rotate(agent.orientation)
-        #     self.plot.annotate(plot_str, xy=agent.get_position() - rot.transform_point(m2 * s1),
-        #                 xytext=rot.transform_point(m2 * s2), **kw)
+        for agent in self.world.healthy_agents.values():
+            plot_str = str(agent.get_cluster_id())
+            if debug:
+                plot_str += " to " + str(agent.target_cluster)
+
+            rot = mtrans.Affine2D().rotate(agent.orientation)
+            self.plot.annotate(plot_str, xy=agent.get_position() - rot.transform_point(m2 * s1),
+                        xytext=rot.transform_point(m2 * s2),color='b', **kw)
+
+
+        for agent in self.world.contaminated_agents.values():
+            plot_str = str(agent.get_cluster_id())
+            if debug:
+                plot_str += " to " + str(agent.target_cluster)
+
+            rot = mtrans.Affine2D().rotate(agent.orientation)
+            self.plot.annotate(plot_str, xy=agent.get_position() - rot.transform_point(m2 * s1),
+                        xytext=rot.transform_point(m2 * s2),color='r', **kw)
+
+
 
         # In debug mode present the clusters of adversaries.
         if debug:
@@ -252,8 +264,12 @@ class ContaminationEnv(Env):
         next_observations = self.get_observations(transition=True)
 
         if len(self.world.healthy_agents) == 0:
+            print("CONT WON")
             self.winner = InternalState.CONTAMINATED.name
         elif len(self.world.contaminated_agents) == 0:
+            global total_healthy_wins
+            total_healthy_wins += 1
+            print("HEALTHY WON")
             self.winner = InternalState.HEALTHY.name
 
 
@@ -286,24 +302,26 @@ class ContaminationEnv(Env):
 
 
 if __name__=="__main__":
-    env = ContaminationEnv(20, 0, 100, 2, 6, stop_on_win=False)
-    num_episodes = 20
+    env = ContaminationEnv(50, 50, 100, 2, 6, stop_on_win=True)
+    num_episodes = 50
 
     simulations_data = []
 
     for num_episode in range(num_episodes):
-        print(num_episode)
+        print("Episode {0}".format(num_episode))
         obs = env.reset()
         for t in range(1024):
             a = np.vstack([np.array([1, 1]) for _ in range(20)])
             o, rew, dd, _ = env.step(plot=False)
 
             # Use if we wish to gather data.
-            # if env.winner is not None:
-            #     simulations_data.append(env.sim_data)
-            #     break
+            if env.winner is not None:
+                simulations_data.append(env.sim_data)
+                break
             #
             env.render(debug=False)
 
     # Use to represent data in series of box plots.
+    # print("Total Healthy Wins: {0}, Number of Episodes: {1}, Winning Percentage: {2}".format(total_healthy_wins, num_episodes,
+    #                                                                                          float(total_healthy_wins) / num_episodes))
     # represent_as_box_plot(to_dataframe(simulations_data, save=True))

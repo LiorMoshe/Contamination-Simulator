@@ -382,24 +382,75 @@ class GlobalActor(object):
         contaminated_clusters = ClusterManager.instance.get_contaminated_clusters()
 
         defending_cluster_ids = []
-        centers = []
+        defensive_centers = []
 
+        change_to_attack = []
         for cluster_id in healthy_clusters:
             curr_cluster = healthy_clusters[cluster_id]
-            if curr_cluster.get_mode() == "A":
-                # In attack mode acquire target and send the required cliques of agents to conquer it.
-                # cluster.explore()
-                curr_cluster.act_attack()
-            else:
-                defending_cluster_ids.append(cluster_id)
-                # # In defense mode, gather in a monotonic component to make agents as safe as possible.
-                # # TODO - Don't need to perform full computation of monotonic heuristic again and again.
-                # cluster.act_defense()
-                centers.append(curr_cluster.get_center())
 
-        defense_center = np.sum(np.vstack([center for center in centers]), axis=0) / len(centers)
-        print("Number of defending clusters: {0}".format(len(defending_cluster_ids)))
-        for cluster_id in defending_cluster_ids:
-            healthy_clusters[cluster_id].act_defense(target=defense_center)
+            '''
+            Each healthy cluster can either be defensive or choose to attack a nearby opponent cluster.
+            Defensive clusters move randomly in the space.
+            Once a cluster has an opposing cluster nearby it which is weaker than it it will choose to attack it.
+            '''
+
+            if curr_cluster.get_mode() == "A":
+                closest_cluster_to_target = closest_cluster_to(curr_cluster.target_loc, contaminated_clusters,
+                                                               except_indices=[curr_cluster.get_index()])
+
+                if closest_cluster_to_target is None:
+                    # curr_cluster.target_loc = None
+                    curr_cluster.switch_to_defense()
+                    defending_cluster_ids.append(cluster_id)
+                    defensive_centers.append(curr_cluster.get_center())
+                    continue
+
+                curr_cluster.target_loc = contaminated_clusters[closest_cluster_to_target].get_center()
+                curr_cluster.act_attack()
+                # targets[my_cluster.get_index()] = Target(InternalState.CONTAMINATED, closest_cluster_to_target,
+
+            else:
+                # Check if there is a close adversary so we would deploy attacking cluster.
+                changed = False
+                for cont_id in contaminated_clusters:
+                    contaminated = contaminated_clusters[cont_id]
+                    dist = euclidean_dist(contaminated.get_center(), curr_cluster.get_center())
+                    # print("Threshold: {0} Dist: {1}".format(curr_cluster.get_diameter() * 1.5, dist))
+                    if dist < curr_cluster.get_diameter() * 1.5 and \
+                        curr_cluster.get_num_agents() >contaminated.get_num_agents():
+                        changed = True
+                        change_to_attack.append((cluster_id, cont_id))
+                        break
+
+                if not changed:
+                    defending_cluster_ids.append(cluster_id)
+                    defensive_centers.append(curr_cluster.get_center())
+
+        for healthy_id, cont_id in change_to_attack:
+            exists = healthy_clusters[healthy_id].switch_to_attack(cont_id)
+            if not exists:
+                ClusterManager.instance.remove_healthy_cluster(healthy_id)
+
+        if len(defensive_centers) > 1:
+            defense_center = np.sum(np.vstack([center for center in defensive_centers]), axis=0) / len(defensive_centers)
+            print("Number of defending clusters: {0}".format(len(defending_cluster_ids)))
+            for cluster_id in defending_cluster_ids:
+                healthy_clusters[cluster_id].act_defense(target=defense_center)
+        elif len(defensive_centers) == 1:
+            # todo- Get closest target and go there, thats your only choice.
+            closest_dist = float('-inf')
+            closest_cluster_id = None
+            curr_center = healthy_clusters[defending_cluster_ids[0]].get_center()
+            for cont_id in contaminated_clusters:
+                contaminated = contaminated_clusters[cont_id]
+                dist = euclidean_dist(curr_center, contaminated.get_center())
+                if dist < closest_dist:
+                    closest_dist = dist
+                    closest_cluster_id = cont_id
+
+            if closest_cluster_id is not None:
+                healthy_clusters[defending_cluster_ids[0]].switch_to_attack(closest_cluster_id)
+            else:
+                healthy_clusters[defending_cluster_ids[0]].stop()
 
 
