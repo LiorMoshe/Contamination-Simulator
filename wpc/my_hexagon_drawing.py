@@ -16,10 +16,10 @@ t = None
 
 hexagon = [(0,0),(0,1),(1,2),(2,1),(2,0),(1,-1),]
 
-SMIN = 2.0
-SMAX = 6.0
+SMIN = 0.5
+SMAX = 2.0
 ROBOT_RADIUS = max(SMIN / 4, 0.25)
-ROBOT_RADIUS = 0.2
+ROBOT_RADIUS = 0.1
 
 # Counter for agents indices.   
 agent_cnt = 1
@@ -532,6 +532,60 @@ def draw_msc():
 
 
 
+def add_triangle(angle, smax):
+    """
+    Used for the triangle heuristic.
+    Draw an agent at the center and two neighbors at symmetrical angles.
+    """
+    add_agent(0,0)
+    add_agent(smax * math.cos(angle), smax * math.sin(angle))
+    add_agent(smax * math.cos(math.pi - angle),smax *  math.sin(math.pi - angle))
+
+    alpha = math.pi - 2 * angle
+    num_agents = math.pi * 2 / (math.pi - alpha)
+    print("Num agents: {0}".format(num_agents))
+
+def add_full_triangle(angle, smax):
+    alpha = math.pi - 2 * angle
+    num_agents = (math.pi / angle) * 2
+
+    print("Before angle: {0}".format(angle))
+    angle = int(num_agents) / (2 * math.pi)
+    print("After angle: {0}".format(angle))
+    # To be exact, fix the angle.
+
+
+    print("Num agents: {0}".format(num_agents))
+    diff = num_agents - int(num_agents)
+    num_agents = int(num_agents)
+    print("After high: {0}".format(num_agents))
+    current = (0,0)
+    delta = 0
+    # smax -= diff
+    for i in range(num_agents):
+        add_agent(current[0], current[1])
+        delta += angle
+        current = (current[0] + smax * math.cos(delta), current[1] + smax * math.sin(delta))
+
+
+def full_dense_circle(smax, robot_radius):
+    """
+    Draw full circle based on cosine rule.
+    """
+    center = (0,0)
+    locations = []
+    angle = 0
+    rad = smax/2
+
+    # Use cosine rule to estimate jump.
+    jump = math.acos((smax ** 2 / 4 + smax ** 2 / 4 - 4 * (robot_radius ** 2)) / (2 * (smax ** 2) / 4))
+    while angle < math.pi * 2:
+        locations.append((rad * math.cos(angle), rad * math.sin(angle)))
+        angle += jump
+
+    for loc in locations:
+        add_agent(loc[0], loc[1])
+
 # hexagon = generate_hexagon(SMAX / 2)
 #
 # print(hexagon)
@@ -541,10 +595,20 @@ def draw_msc():
 #     add_agent(xs[i], ys[i])
 
 # draw_msc()
+# add_full_triangle(15 * math.pi / 180, SMAX)
+# full_dense_circle(SMAX, ROBOT_RADIUS)
+add_agent(0,0)
 
-draw_edges(agent_mapping, edge_list)
-border = plot_agent_boundary()
-
+add_agent((2 * SMAX-0.1) * math.cos(30 * math.pi/180), (2 * SMAX-0.1)*math.sin(30 * math.pi/180))
+# draw_edges(agent_mapping, edge_list)
+# border = plot_agent_boundary()
+# fence = [(4.041451884327381, 0.0), (-2.0207259421636894, 3.5000000000000004), (-2.020725942163692, -3.4999999999999996)]
+# add_agent(5.65685424949238, 0.0)
+# add_agent(3.4638242249419727e-16, 5.65685424949238)
+# add_agent(-5.65685424949238, 6.927648449883945e-16)
+# add_agent(-1.0391472674825918e-15, -5.65685424949238)
+# (-1.0391472674825918e-15, -5.65685424949238)
+#{(3.447061557284085, -5.9704857540335325), (-1.4263356151203959, -2.4704857540335334), (3.4470615572840835, -5.970485754033533)}
 
 fig.canvas.mpl_connect('button_press_event', on_press)
 fig.canvas.mpl_connect("motion_notify_event", on_hover)
