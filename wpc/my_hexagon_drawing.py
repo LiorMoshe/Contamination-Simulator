@@ -16,10 +16,10 @@ t = None
 
 hexagon = [(0,0),(0,1),(1,2),(2,1),(2,0),(1,-1),]
 
-SMIN = 2.0
-SMAX = 6.0
-ROBOT_RADIUS = max(SMIN / 4, 0.25)
-ROBOT_RADIUS = 0.2
+SMIN = 0.5
+SMAX = 2.0
+# ROBOT_RADIUS = max(SMIN / 4, 0.25)
+ROBOT_RADIUS = 0.1
 
 # Counter for agents indices.   
 agent_cnt = 1

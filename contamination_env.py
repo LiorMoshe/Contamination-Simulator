@@ -27,9 +27,10 @@ class ContaminationEnv(Env):
     """
     metadata = {'render.modes': ['human', 'animate']}
 
-    def __init__(self, num_healthy, num_contaminated, world_size,
+    def __init__(self, robot_radius,num_healthy, num_contaminated, world_size,
                  min_obs_rad, max_obs_rad, torus=False, stop_on_win=True, dynamics='direct'):
         Env.__init__(self)
+        self.robot_radius = robot_radius
         self.num_healthy = num_healthy
         self.num_contaminated = num_contaminated
         self.world_size = world_size
@@ -39,7 +40,7 @@ class ContaminationEnv(Env):
         self.torus = torus
         self.world = base.World(world_size, torus, dynamics)
         self.global_actor = GlobalActor(min_obs_rad, max_obs_rad)
-        ClusterManager(self.min_obs_rad, self.max_obs_rad, 0.1)
+        ClusterManager(self.min_obs_rad, self.max_obs_rad, robot_radius)
         self.reset()
 
 
@@ -106,24 +107,24 @@ class ContaminationEnv(Env):
         kw = dict(xycoords='data', textcoords='offset points', size=10)
 
         # Use if we wish to plot the number of cluster for each agent group.
-        for agent in self.world.healthy_agents.values():
-            plot_str = str(agent.get_cluster_id())
-            if debug:
-                plot_str += " to " + str(agent.target_cluster)
-
-            rot = mtrans.Affine2D().rotate(agent.orientation)
-            self.plot.annotate(plot_str, xy=agent.get_position() - rot.transform_point(m2 * s1),
-                        xytext=rot.transform_point(m2 * s2),color='b', **kw)
-
-
-        for agent in self.world.contaminated_agents.values():
-            plot_str = str(agent.get_cluster_id())
-            if debug:
-                plot_str += " to " + str(agent.target_cluster)
-
-            rot = mtrans.Affine2D().rotate(agent.orientation)
-            self.plot.annotate(plot_str, xy=agent.get_position() - rot.transform_point(m2 * s1),
-                        xytext=rot.transform_point(m2 * s2),color='r', **kw)
+        # for agent in self.world.healthy_agents.values():
+        #     plot_str = str(agent.get_cluster_id())
+        #     if debug:
+        #         plot_str += " to " + str(agent.target_cluster)
+        #
+        #     rot = mtrans.Affine2D().rotate(agent.orientation)
+        #     self.plot.annotate(plot_str, xy=agent.get_position() - rot.transform_point(m2 * s1),
+        #                 xytext=rot.transform_point(m2 * s2),color='b', **kw)
+        #
+        #
+        # for agent in self.world.contaminated_agents.values():
+        #     plot_str = str(agent.get_cluster_id())
+        #     if debug:
+        #         plot_str += " to " + str(agent.target_cluster)
+        #
+        #     rot = mtrans.Affine2D().rotate(agent.orientation)
+        #     self.plot.annotate(plot_str, xy=agent.get_position() - rot.transform_point(m2 * s1),
+        #                 xytext=rot.transform_point(m2 * s2),color='r', **kw)
 
 
 
@@ -166,8 +167,8 @@ class ContaminationEnv(Env):
         self.global_actor.reset()
         ClusterManager.instance.reset()
         self.sim_data = SimulationData()
-        healthy_agents = {idx: ContaminationAgent(self, InternalState.HEALTHY, idx) for idx in range(self.num_healthy)}
-        contaminated_agents = {idx: ContaminationAgent(self, InternalState.CONTAMINATED, idx) for idx in
+        healthy_agents = {idx: ContaminationAgent(self, InternalState.HEALTHY, idx, self.robot_radius) for idx in range(self.num_healthy)}
+        contaminated_agents = {idx: ContaminationAgent(self, InternalState.CONTAMINATED, idx, self.robot_radius) for idx in
                                range(self.num_healthy, self.num_healthy + self.num_contaminated)}
         self.world.agents = {**healthy_agents, **contaminated_agents}
 
@@ -255,7 +256,7 @@ class ContaminationEnv(Env):
             ClusterManager.instance.update_clusters(self.global_state)
             # self.global_actor.gather_conquer_act()
             # self.global_actor.strategic_movement(self.global_state)
-            self.global_actor.attack_defense_heuristic(self.global_state)
+            self.global_actor.odc_strategic_movement(self.global_state)
 
 
 
@@ -302,7 +303,7 @@ class ContaminationEnv(Env):
 
 
 if __name__=="__main__":
-    env = ContaminationEnv(50, 50, 100, 2, 6, stop_on_win=True)
+    env = ContaminationEnv(0.1,35, 35, 100, 2, 6, stop_on_win=True)
     num_episodes = 50
 
     simulations_data = []
@@ -315,9 +316,9 @@ if __name__=="__main__":
             o, rew, dd, _ = env.step(plot=False)
 
             # Use if we wish to gather data.
-            if env.winner is not None:
-                simulations_data.append(env.sim_data)
-                break
+            # if env.winner is not None:
+            #     simulations_data.append(env.sim_data)
+            #     break
             #
             env.render(debug=False)
 

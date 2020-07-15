@@ -20,13 +20,14 @@ class ContaminationAgent(object):
     between it's minimal and maximal observation radii.
     """
 
-    def __init__(self, environment, state, agent_idx):
+    def __init__(self, environment, state, agent_idx, robot_radius):
         self.min_obs_rad = environment.min_obs_rad
         self.max_obs_rad = environment.max_obs_rad
         self.torus = environment.torus
         self.world_size = environment.world_size
         self.internal_state = state
         self.index = agent_idx
+        self.robot_radius = robot_radius
 
         # Position of our agent.
         self.pos = None
@@ -92,6 +93,15 @@ class ContaminationAgent(object):
     def get_position(self):
         return self.pos
 
+    def conceal_from_me(self,target,potential_obstacle):
+        target = np.array(target)
+        potential_obstacle = np.array(potential_obstacle)
+        pos = np.array(self.pos)
+
+        dist = np.linalg.norm(np.cross(pos - target, pos - potential_obstacle)) / np.linalg.norm(pos - target)
+        return dist < self.robot_radius
+
+
     def get_observation(self, distance_matrix, angle_matrix, agents):
         """
         Get the current observation of the agent based on the given distance matrix.
@@ -103,9 +113,28 @@ class ContaminationAgent(object):
         :return: A list of observations.
         """
         observation = []
+
+        candidates = []
         for idx, dist in enumerate(distance_matrix):
-            if dist >= self.min_obs_rad and dist <= self.max_obs_rad:
+
+            if dist <= self.max_obs_rad:
+                candidates.append(idx)
+            # if dist >= self.min_obs_rad and dist <= self.max_obs_rad:
                 observation.append(Observation(dist, angle_matrix[idx], agents[idx].internal_state))
+
+        for first_idx in candidates:
+            has_concealment = False
+            for second_idx in candidates:
+                if first_idx != second_idx:
+                    if self.conceal_from_me(agents[first_idx].pos,agents[second_idx].pos):
+                        has_concealment = True
+                        break
+
+            if not has_concealment:
+                observation.append(Observation(distance_matrix[first_idx],
+                                               angle_matrix[first_idx], agents[first_idx].internal_state))
+
+
 
         return observation
 

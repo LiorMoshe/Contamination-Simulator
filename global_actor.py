@@ -88,6 +88,42 @@ class GlobalActor(object):
                     gathered_cluster.stop()
 
 
+    def odc_strategic_movement(self, global_state):
+        """
+        Move in stable structures (msc and onion structures) toward the center of all the clusters.
+        Once we have a strong stabilized structure conquer the clusters of the adversary.
+        :param global_state:
+        :return:
+        """
+        healthy_clusters = ClusterManager.instance.get_healthy_clusters()
+        contaminated_clusters = ClusterManager.instance.get_contaminated_clusters()
+
+        if len(healthy_clusters) > 1:
+            center_of_clusters = np.sum(np.vstack([cluster.get_center() for cluster in healthy_clusters.values()]),
+                             axis=0) / len(healthy_clusters)
+
+            for cluster in healthy_clusters.values():
+                if cluster.size() > 3:
+                    if not cluster.did_converge(use_odc=True):
+                        cluster.stabilize_structure(use_odc=True)
+                    else:
+                        cluster.move_in_formation(center_of_clusters)
+                else:
+                    cluster.move_to_target(center_of_clusters)
+        elif len(healthy_clusters) == 1:
+            gathered_cluster = list(healthy_clusters.values())[0]
+            gathered_cluster.log_observations(global_state)
+
+            if not gathered_cluster.did_converge(use_odc=True):
+                gathered_cluster.stabilize_structure(use_odc=True)
+            else:
+                if len(contaminated_clusters) > 0:
+                    closest = closest_cluster_to(gathered_cluster.get_center(), contaminated_clusters)
+                    gathered_cluster.move_in_formation(contaminated_clusters[closest].get_center())
+                else:
+                    gathered_cluster.stop()
+
+
     def compute_rand_area(self):
         """
         Compute bounding area on our clusters.

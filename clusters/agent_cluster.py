@@ -1,5 +1,6 @@
 
-from utils import get_slope, euclidean_dist, get_max_stable_cycle_size, to_rad
+from utils import get_slope, euclidean_dist, get_max_stable_cycle_size, to_rad, get_max_dense_circle_size, \
+    get_agent_arc_size
 import math
 import numpy as np
 import logging
@@ -20,6 +21,7 @@ class AgentCluster(object):
         self.target_loc = None
         self.onion = False
         self.msc = False
+        self.odc = False
         self.smin = smin
         self.smax = smax
         self.robot_radius = robot_radius
@@ -320,6 +322,33 @@ class AgentCluster(object):
 
         logging.info("Cluster " + str(self._id) + " min obs: " + str(min_obs) + " max obs: " + str(max_obs))
 
+    def get_odc_targets(self):
+        center = self.get_center()
+        num_agents = len(self.agents)
+        radius = self.smax / 2
+        arc_size = get_agent_arc_size(self.robot_radius, radius)
+        jump = (2 * math.pi - num_agents * arc_size) / num_agents + arc_size
+        targets = []
+        for i in range(num_agents):
+            targets.append((center[0] + radius * math.cos(jump * i), center[1] + radius * math.sin(jump * i)))
+        return targets
+
+    def create_odc(self):
+
+        # If this is simply a clique create an msc.
+        clique_size = get_max_stable_cycle_size(self.smin, self.smax)
+        if len(self.agents) <= clique_size:
+            self.create_msc()
+            return
+
+        # Check if there aren't more agents in the component than in an msc.
+        odc_size = get_max_dense_circle_size(self.smax, self.robot_radius)
+        if len(self.agents) > odc_size:
+            return
+
+        self.move_agents_to_targets(self.get_odc_targets())
+
+
     def create_msc(self):
         """
         Create from our cluster a maximal stable cycle.
@@ -555,7 +584,7 @@ class AgentCluster(object):
         self.prev_dist = closest
         return False
 
-    def stabilize_structure(self):
+    def stabilize_structure(self, use_odc=False):
         """
         Adapt to a certain formation based on the amount of agents in the formation.
         :return:
@@ -571,10 +600,25 @@ class AgentCluster(object):
             self.msc = True
             self.onion = False
             self.create_msc()
-        else:
+        elif not use_odc:
             self.msc = False
             self.onion = True
             self.create_onion_structure()
+        else:
+            self.create_odc()
+
+
+    def converged_to_targets(self, targets):
+        allocated = []
+        for target in targets:
+            for agent in self.agents.values():
+                if agent.index not in allocated and euclidean_dist(target, agent.get_position()) < 1e-2:
+                    allocated.append(agent.index)
+
+        return len(allocated) == len(self.agents)
+
+    def odc_converged(self):
+        return self.converged_to_targets(self.get_odc_targets())
 
     def msc_converged(self):
         """
@@ -591,24 +635,16 @@ class AgentCluster(object):
         max_rad = self.agents[idx].max_obs_rad
         jump_size =  360 / (num_agents)
 
-        allocated = []
+        targets = []
         for num in range(len(self.agents.values())):
             angle = to_rad(jump_size * num)
-            target = np.array([center[0] + (max_rad / 2) * math.cos(angle),
-                               center[1] + (max_rad / 2) * math.sin(angle)])
+            targets.append(np.array([center[0] + (max_rad / 2) * math.cos(angle),
+                               center[1] + (max_rad / 2) * math.sin(angle)]))
+
+        return self.converged_to_targets(targets)
 
 
-            for agent in self.agents.values():
-                if agent.index not in allocated and euclidean_dist(target, agent.get_position()) < 1e-2:
-                    allocated.append(agent.index)
-
-        return len(allocated) == len(self.agents)
-
-
-
-
-
-    def did_converge(self):
+    def did_converge(self,use_odc=False):
         """
         Check whether our structure converged, if it's an msc we try to build we will
         run the msc convergence test and if its an onion structure we will perform  the onion structure
@@ -617,6 +653,8 @@ class AgentCluster(object):
         """
         if self.msc:
             return self.msc_converged()
+        elif use_odc:
+            return self.odc_converged()
         elif self.onion:
             return self.converged_onion()
         else:

@@ -232,8 +232,16 @@ def get_slope(x0, y0, x1, y1):
 def euclidean_dist(first, second):
     return math.sqrt((first[0] - second[0]) ** 2 + (first[1] - second[1]) ** 2)
 
+def get_agent_arc_size(robot_radius, circle_radius):
+    return math.acos(1 - (2 * (robot_radius ** 2)) / circle_radius ** 2)
+
 def get_max_stable_cycle_size(min_rad, max_rad):
     return math.floor(2 * math.pi / (math.acos(1 - (2 * min_rad ** 2) / (max_rad ** 2))))
+
+def get_max_dense_circle_size(max_rad, robot_radius):
+    alpha = get_agent_arc_size(robot_radius, max_rad / 2)
+    return math.floor(2*math.pi / alpha)
+
 
 def to_rad(angle):
     return angle * math.pi / 180
@@ -249,4 +257,5 @@ def closest_cluster_to(target, clusters, except_indices=[]):
             min_idx = idx
 
     return min_idx
+
 
