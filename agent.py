@@ -101,8 +101,20 @@ class ContaminationAgent(object):
         dist = np.linalg.norm(np.cross(pos - target, pos - potential_obstacle)) / np.linalg.norm(pos - target)
         return dist < self.robot_radius
 
+    def does_any_conceals(self, target, candidates):
+        """
+        Checks whether there is any candidate that conceals a given target.
+        """
+        target = np.array(target)
+        pos = np.array(self.pos)
+        for candidate in candidates:
+            np_candidate = np.array(candidate)
+            dist = np.linalg.norm(np.cross(pos - target, pos - np_candidate)) / np.linalg.norm(pos - target)
+            if dist < self.robot_radius:
+                return True
+        return False
 
-    def get_observation(self, distance_matrix, angle_matrix, agents):
+    def get_observation(self, distance_matrix, angle_matrix, agents, org_idx=0,set=False):
         """
         Get the current observation of the agent based on the given distance matrix.
         The observation of the agent will be it's distance from each agent and bearing.
@@ -115,28 +127,32 @@ class ContaminationAgent(object):
         observation = []
 
         candidates = []
+        # if set:
+        #     print("In Dist Mat: ",distance_matrix[org_idx])
         for idx, dist in enumerate(distance_matrix):
 
-            if dist <= self.max_obs_rad:
+            if dist <= self.max_obs_rad and dist > 0:
                 candidates.append(idx)
             # if dist >= self.min_obs_rad and dist <= self.max_obs_rad:
                 observation.append(Observation(dist, angle_matrix[idx], agents[idx].internal_state))
 
         for first_idx in candidates:
-            has_concealment = False
-            for second_idx in candidates:
-                if first_idx != second_idx:
-                    if self.conceal_from_me(agents[first_idx].pos,agents[second_idx].pos):
-                        has_concealment = True
-                        break
-
-            if not has_concealment:
+            # has_concealment = False
+            # for second_idx in candidates:
+            #     if first_idx != second_idx:
+            #         if self.conceal_from_me(agents[first_idx].pos,agents[second_idx].pos):
+            #             has_concealment = True
+            #             break
+            curr_agents = [agents[idx].pos for idx in candidates if idx != first_idx]
+            if not self.does_any_conceals(agents[first_idx].pos, curr_agents):
                 observation.append(Observation(distance_matrix[first_idx],
                                                angle_matrix[first_idx], agents[first_idx].internal_state))
 
 
 
         return observation
+
+
 
     def state_transition(self, observation):
         """

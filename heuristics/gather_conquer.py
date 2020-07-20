@@ -137,8 +137,6 @@ def maximal_stable_cycles(healthy_clusters,  contaminated_clusters, global_state
                 cluster.allocated_action = False
     return targets
 
-
-
 def gather_and_conquer(healthy_clusters, contaminated_clusters):
     """
     Given the groups of healthy and contaminated clusters run the gather and conquer heuristic and return
@@ -193,7 +191,7 @@ def gather_and_conquer(healthy_clusters, contaminated_clusters):
     # Handle leftovers, direct them to the closest cluster which is ours in order to make them merge.
     for cluster in healthy_clusters.values():
         if not cluster.allocated_action:
-            print("NO ACTION")
+            # print("NO ACTION")
             closest_cluster = closest_cluster_to(cluster.get_center(), healthy_clusters,
                                                  except_indices=[cluster.get_index()])
 

@@ -204,9 +204,10 @@ class ContaminationEnv(Env):
         healthy_observations = []
 
         for idx, agent in self.world.agents.items():
+            # print("Agent Index: ",idx)
             curr_observation = agent.get_observation(self.world.distance_matrix[idx, :],
                                                       self.world.angle_matrix[idx, :],
-                                                      self.world.agents)
+                                                      self.world.agents,idx, set=True)
 
             if transition:
                 observations[idx] = curr_observation
@@ -316,13 +317,13 @@ if __name__=="__main__":
             o, rew, dd, _ = env.step(plot=False)
 
             # Use if we wish to gather data.
-            # if env.winner is not None:
-            #     simulations_data.append(env.sim_data)
-            #     break
-            #
-            env.render(debug=False)
+            if env.winner is not None:
+                simulations_data.append(env.sim_data)
+                break
+
+            # env.render(debug=False)
 
     # Use to represent data in series of box plots.
-    # print("Total Healthy Wins: {0}, Number of Episodes: {1}, Winning Percentage: {2}".format(total_healthy_wins, num_episodes,
-    #                                                                                          float(total_healthy_wins) / num_episodes))
-    # represent_as_box_plot(to_dataframe(simulations_data, save=True))
+    print("Total Healthy Wins: {0}, Number of Episodes: {1}, Winning Percentage: {2}".format(total_healthy_wins, num_episodes,
+                                                                                             float(total_healthy_wins) / num_episodes))
+    represent_as_box_plot(to_dataframe(simulations_data, save=True))
