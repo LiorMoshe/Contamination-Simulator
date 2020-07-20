@@ -127,24 +127,21 @@ class ContaminationAgent(object):
         observation = []
 
         candidates = []
+        in_area = []
         # if set:
         #     print("In Dist Mat: ",distance_matrix[org_idx])
         for idx, dist in enumerate(distance_matrix):
 
             if dist <= self.max_obs_rad and dist > 0:
-                candidates.append(idx)
+                in_area.append(idx)
+                if dist >= self.min_obs_rad:
+                    candidates.append(idx)
             # if dist >= self.min_obs_rad and dist <= self.max_obs_rad:
-                observation.append(Observation(dist, angle_matrix[idx], agents[idx].internal_state))
+            #     observation.append(Observation(dist, angle_matrix[idx], agents[idx].internal_state))
 
         for first_idx in candidates:
-            # has_concealment = False
-            # for second_idx in candidates:
-            #     if first_idx != second_idx:
-            #         if self.conceal_from_me(agents[first_idx].pos,agents[second_idx].pos):
-            #             has_concealment = True
-            #             break
-            curr_agents = [agents[idx].pos for idx in candidates if idx != first_idx]
-            if not self.does_any_conceals(agents[first_idx].pos, curr_agents):
+            # curr_agents = [agents[idx].pos for idx in in_area if idx != first_idx]
+            # if not self.does_any_conceals(agents[first_idx].pos, curr_agents):
                 observation.append(Observation(distance_matrix[first_idx],
                                                angle_matrix[first_idx], agents[first_idx].internal_state))
 

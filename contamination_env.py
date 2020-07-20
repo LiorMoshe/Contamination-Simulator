@@ -320,7 +320,7 @@ if __name__=="__main__":
             if env.winner is not None:
                 simulations_data.append(env.sim_data)
                 break
-
+            #
             # env.render(debug=False)
 
     # Use to represent data in series of box plots.
