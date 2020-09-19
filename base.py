@@ -94,8 +94,9 @@ class World(object):
                                                      torus=self.torus, world_size=self.world_size, add_to_diagonal=-1)
 
         # Compute relative angle between each pair of agents based on their given orientations.
+        # Note: We don't care about Orientation anymore.
         angles = np.vstack([U.get_angle(self.nodes, self.agents[idx].get_position(),
-                                        torus=self.torus, world_size=self.world_size) - self.agents[idx].get_orientation()
+                                        torus=self.torus, world_size=self.world_size)
                             for idx in range(len(self.agents))])
         angles_shift = -angles % (2 * np.pi)
         self.angle_matrix = np.where(angles_shift > np.pi, angles_shift - 2 * np.pi, angles_shift)
@@ -152,36 +153,41 @@ class World(object):
         self.update_agent_states()
 
         # Use code in comment if you wish to use a local policy on each one of the agents.
-        # for agent in self.contaminated_agents.values():
-        #     # action = External.go_to_closest_neighbor(agent.get_state(), agent.internal_state.value,
-        #     #                                          agent.get_observation(self.distance_matrix[agent.index, :],
-        #     #                                                                self.angle_matrix[agent.index, :],
-        #     #                                                                self.agents))
-        #     # action = External.random_action()
-        #     action = External.potential_fields(agent.get_observation(self.distance_matrix[agent.index, :],
-        #                                                                    self.angle_matrix[agent.index, :],
-        #                                                                    self.agents), agent.internal_state)
-        #     # print(action)
-        #
-        #     next_coord = agent.get_position() + action #* self.dt
-        #     if self.torus:
-        #         next_coord = np.where(next_coord < 0, next_coord + self.world_size, next_coord)
-        #         next_coord = np.where(next_coord > self.world_size, next_coord - self.world_size, next_coord)
-        #     else:
-        #         next_coord = np.where(next_coord < 0, 0, next_coord)
-        #         next_coord = np.where(next_coord > self.world_size, self.world_size, next_coord)
-        #     agent.set_position(next_coord)
+        for agent in self.contaminated_agents.values():
+            # action = External.go_to_closest_neighbor(agent.get_state(), agent.internal_state.value,
+            #                                          agent.get_observation(self.distance_matrix[agent.index, :],
+            #                                                                self.angle_matrix[agent.index, :],
+            #                                                                self.agents))
+            action = External.random_action()
+            # action = External.potential_fields(agent.get_observation(self.distance_matrix[agent.index, :],
+            #                                                                self.angle_matrix[agent.index, :],
+            #                                                                self.agents), agent.internal_state)
+            # print(action)
 
-        #     # self.contaminated_states[i, :] = agent.get_state()
+            next_coord = agent.get_position() + action #* self.dt
+            if self.torus:
+                next_coord = np.where(next_coord < 0, next_coord + self.world_size, next_coord)
+                next_coord = np.where(next_coord > self.world_size, next_coord - self.world_size, next_coord)
+            else:
+                next_coord = np.where(next_coord < 0, 0, next_coord)
+                next_coord = np.where(next_coord > self.world_size, self.world_size, next_coord)
+            agent.set_position(next_coord)
+            agent.advance_time()
+
+            # self.contaminated_states[i, :] = agent.get_state()
         #
         if len(self.healthy_agents) > 0:
             self.move_agents(agents=self.healthy_agents)
 
+            # Advance the time for the healthy agents.
+            for agent in self.healthy_agents.values():
+                agent.advance_time()
+
 
         # Decides on strategy of the adversary.
-        self.adversary.gather_and_conquer()
-        if len(self.contaminated_agents) > 0:
-            self.move_agents(agents=self.contaminated_agents, save_nodes=False)
+        # self.adversary.gather_and_conquer()
+        # if len(self.contaminated_agents) > 0:
+        #     self.move_agents(agents=self.contaminated_agents, save_nodes=False)
 
             # for contaminated_agent in self.contaminated_agents.values():
             #     observation = contaminated_agent.get_observation(self.distance_matrix[contaminated_agent.index, :],

@@ -1,16 +1,17 @@
-from gym import Env
-import base
-from agent import ContaminationAgent, InternalState
-import numpy as np
-# import os
-import matplotlib.pyplot as plt
+import logging
 import shutil
 from collections import namedtuple
+import matplotlib.pyplot as plt
 import matplotlib.transforms as mtrans
-from simulation_data import SimulationData, represent_as_box_plot, to_dataframe
-from global_actor import GlobalActor
-import logging
+import numpy as np
+from gym import Env
+
+import base
+from agent import ContaminationAgent, InternalState
 from clusters.cluster_manager import ClusterManager
+from comm.router import Router
+from global_actor import GlobalActor
+from simulation_data import SimulationData
 
 logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s',
                     level=logging.DEBUG)
@@ -24,11 +25,14 @@ class ContaminationEnv(Env):
     """
     Implementation of the contamination environments using the API defined by OpenAI Gym, we will assume that we only
     control the healthy agents whereas the contaminated agents are controlled by external unknown policies.
+
+    The global actor moves the healthy agents in a centralized manner while the world object moves all the other
+    participants of our game environment (that is, adversaries).
     """
     metadata = {'render.modes': ['human', 'animate']}
 
     def __init__(self, robot_radius,num_healthy, num_contaminated, world_size,
-                 min_obs_rad, max_obs_rad, torus=False, stop_on_win=True, dynamics='direct'):
+                 min_obs_rad, max_obs_rad, centralized = True, torus=False, stop_on_win=True, dynamics='direct'):
         Env.__init__(self)
         self.robot_radius = robot_radius
         self.num_healthy = num_healthy
@@ -39,6 +43,8 @@ class ContaminationEnv(Env):
         self.stop_on_win = stop_on_win
         self.torus = torus
         self.world = base.World(world_size, torus, dynamics)
+        self.centralized = centralized
+        self.router = Router()
         self.global_actor = GlobalActor(min_obs_rad, max_obs_rad)
         ClusterManager(self.min_obs_rad, self.max_obs_rad, robot_radius)
         self.reset()
@@ -82,11 +88,11 @@ class ContaminationEnv(Env):
         max_obs_circles = []
 
         if self.world.contaminated_states is not None:
-            self.plot.scatter(self.world.contaminated_states[:, 0], self.world.contaminated_states[:, 1], c='r', s=1,
+            self.plot.scatter(self.world.contaminated_states[:, 0], self.world.contaminated_states[:, 1], c='r', s=10,
                               zorder=2)
 
         if len(self.world.healthy_agents) > 0:
-            self.plot.scatter(self.world.healthy_states[:, 0], self.world.healthy_states[:, 1], c='b', s=0.25,
+            self.plot.scatter(self.world.healthy_states[:, 0], self.world.healthy_states[:, 1], c='b', s=10,
                               zorder=2)
 
         for i in range(self.num_healthy + self.num_contaminated):
@@ -107,15 +113,15 @@ class ContaminationEnv(Env):
         kw = dict(xycoords='data', textcoords='offset points', size=10)
 
         # Use if we wish to plot the number of cluster for each agent group.
-        # for agent in self.world.healthy_agents.values():
-        #     plot_str = str(agent.get_cluster_id())
-        #     if debug:
-        #         plot_str += " to " + str(agent.target_cluster)
-        #
-        #     rot = mtrans.Affine2D().rotate(agent.orientation)
-        #     self.plot.annotate(plot_str, xy=agent.get_position() - rot.transform_point(m2 * s1),
-        #                 xytext=rot.transform_point(m2 * s2),color='b', **kw)
-        #
+        for agent in self.world.healthy_agents.values():
+            plot_str = str(agent.index)
+            if debug:
+                plot_str += " to " + str(agent.target_cluster)
+
+            rot = mtrans.Affine2D().rotate(agent.orientation)
+            self.plot.annotate(plot_str, xy=agent.get_position() - rot.transform_point(m2 * s1),
+                        xytext=rot.transform_point(m2 * s2),color='b', **kw)
+
         #
         # for agent in self.world.contaminated_agents.values():
         #     plot_str = str(agent.get_cluster_id())
@@ -167,8 +173,10 @@ class ContaminationEnv(Env):
         self.global_actor.reset()
         ClusterManager.instance.reset()
         self.sim_data = SimulationData()
-        healthy_agents = {idx: ContaminationAgent(self, InternalState.HEALTHY, idx, self.robot_radius) for idx in range(self.num_healthy)}
-        contaminated_agents = {idx: ContaminationAgent(self, InternalState.CONTAMINATED, idx, self.robot_radius) for idx in
+        healthy_agents = {idx: ContaminationAgent(self, InternalState.HEALTHY, idx, self.robot_radius, router=self.router)
+                          for idx in range(self.num_healthy)}
+        contaminated_agents = {idx: ContaminationAgent(self, InternalState.CONTAMINATED, idx, self.robot_radius,
+                                                       router=self.router) for idx in
                                range(self.num_healthy, self.num_healthy + self.num_contaminated)}
         self.world.agents = {**healthy_agents, **contaminated_agents}
 
@@ -193,7 +201,7 @@ class ContaminationEnv(Env):
         states[:, 2:3] = 2 * np.pi *  states[:, 2:3]
         return states
 
-    def get_observations(self, transition=False):
+    def get_observations(self, transition=False, target_state=1):
         """
         Get the observations of all the agents in our environment.
         We will only return the observations from the healthy agents which we control.
@@ -213,7 +221,7 @@ class ContaminationEnv(Env):
                 observations[idx] = curr_observation
 
             # Collect observations of the healthy agents.
-            if agent.internal_state.value == 1:
+            if agent.internal_state.value == target_state:
                 healthy_observations.append(curr_observation)
 
         if transition:
@@ -229,6 +237,20 @@ class ContaminationEnv(Env):
     @property
     def is_terminal(self):
         return self.timestep >= self.timestep_limit or self.winner is not None
+
+
+    def move_agents_distributively(self, state=1):
+        """
+        Move all the agents of the given state in the game distributively.
+        Each agent sets its own action based on the distributed strategy.
+        :return:
+        """
+        for idx, agent in self.world.agents.items():
+            if agent.internal_state.value == state:
+                curr_observation = agent.get_observation(self.world.distance_matrix[idx, :],
+                                                     self.world.angle_matrix[idx, :],
+                                                     self.world.agents, idx, set=True)
+                agent.distributed_strategy(curr_observation)
 
 
     def step(self, actions=None, plot=True):
@@ -252,14 +274,15 @@ class ContaminationEnv(Env):
 
             for agent, action in zip(self.world.agents.values(), clipped_actions):
                 agent.action = action
-        else:
+        elif self.centralized:
             # Compute the clusters which will be used by the global players.
             ClusterManager.instance.update_clusters(self.global_state)
             # self.global_actor.gather_conquer_act()
             # self.global_actor.strategic_movement(self.global_state)
             self.global_actor.odc_strategic_movement(self.global_state)
-
-
+        else:
+            # TODO- Move distributively.
+            self.move_agents_distributively()
 
         # This is where the opponent chooses its move.
         self.world.step(self.global_state)
@@ -304,8 +327,8 @@ class ContaminationEnv(Env):
 
 
 if __name__=="__main__":
-    env = ContaminationEnv(0.1,35, 35, 100, 2, 6, stop_on_win=True)
-    num_episodes = 50
+    env = ContaminationEnv(0.1,50, 0, 50, 2, 6, centralized=False, torus=False, stop_on_win=False)
+    num_episodes = 1
 
     simulations_data = []
 
@@ -317,13 +340,13 @@ if __name__=="__main__":
             o, rew, dd, _ = env.step(plot=False)
 
             # Use if we wish to gather data.
-            if env.winner is not None:
-                simulations_data.append(env.sim_data)
-                break
-            #
-            # env.render(debug=False)
+            # if env.winner is not None:
+            #     simulations_data.append(env.sim_data)
+            #     break
+            # #
+            env.render(debug=False)
 
     # Use to represent data in series of box plots.
-    print("Total Healthy Wins: {0}, Number of Episodes: {1}, Winning Percentage: {2}".format(total_healthy_wins, num_episodes,
-                                                                                             float(total_healthy_wins) / num_episodes))
-    represent_as_box_plot(to_dataframe(simulations_data, save=True))
+    # print("Total Healthy Wins: {0}, Number of Episodes: {1}, Winning Percentage: {2}".format(total_healthy_wins, num_episodes,
+    #                                                                                          float(total_healthy_wins) / num_episodes))
+    # represent_as_box_plot(to_dataframe(simulations_data, save=True))

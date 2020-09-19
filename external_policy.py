@@ -1,6 +1,7 @@
 import numpy as np
 import utils as U
 import math
+import random
 
 """
 This file will contain external policies which can be used by the contaminated group of agents in the game.
@@ -66,8 +67,15 @@ def potential_fields(observation, internal_state):
     return potential_force
 
 def random_action():
-    return np.random.rand(1,2)
+    """
+    Generates random number between -1 and 1
+    :return:
+    """
+    return -1 + 2 *np.random.rand(1,2)
 
+
+def random_angle():
+    return random.random() * math.pi*2
 
 
 
