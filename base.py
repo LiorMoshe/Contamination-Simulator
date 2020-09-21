@@ -158,10 +158,10 @@ class World(object):
             #                                          agent.get_observation(self.distance_matrix[agent.index, :],
             #                                                                self.angle_matrix[agent.index, :],
             #                                                                self.agents))
-            action = External.random_action()
-            # action = External.potential_fields(agent.get_observation(self.distance_matrix[agent.index, :],
-            #                                                                self.angle_matrix[agent.index, :],
-            #                                                                self.agents), agent.internal_state)
+            # action = External.random_action()
+            action = External.potential_fields(agent.get_observation(self.distance_matrix[agent.index, :],
+                                                                           self.angle_matrix[agent.index, :],
+                                                                           self.agents), agent.internal_state)
             # print(action)
 
             next_coord = agent.get_position() + action #* self.dt

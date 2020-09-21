@@ -327,7 +327,7 @@ class ContaminationEnv(Env):
 
 
 if __name__=="__main__":
-    env = ContaminationEnv(0.1,50, 0, 50, 2, 6, centralized=False, torus=False, stop_on_win=False)
+    env = ContaminationEnv(0.1,20, 20, 50, 2, 6, centralized=False, torus=False, stop_on_win=False)
     num_episodes = 1
 
     simulations_data = []
@@ -348,5 +348,5 @@ if __name__=="__main__":
 
     # Use to represent data in series of box plots.
     # print("Total Healthy Wins: {0}, Number of Episodes: {1}, Winning Percentage: {2}".format(total_healthy_wins, num_episodes,
-    #                                                                                          float(total_healthy_wins) / num_episodes))
+    #                                                                                           float(total_healthy_wins) / num_episodes))
     # represent_as_box_plot(to_dataframe(simulations_data, save=True))

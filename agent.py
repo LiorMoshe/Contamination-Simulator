@@ -3,6 +3,7 @@ import math
 from operator import itemgetter
 
 import numpy as np
+import random
 from gym import spaces
 
 import external_policy as External
@@ -107,6 +108,8 @@ class ContaminationAgent(object):
 
         # The state from the last discovery.
         self.discovery_state = None
+
+        self.angle = None
 
     @property
     def action_space(self):
@@ -668,14 +671,28 @@ class ContaminationAgent(object):
 
         else:
             # In this case we move randomly in a formation. Pass Random angle and magnitude.
-            angle = External.random_angle()
-            self.publish_message(Message(angle, self,observed_agents,self.time, MessageType.RANDOM_DIRECTION))
-            self.move_in_angle(angle)
+            self.continuous_angle()
+            self.publish_message(Message(self.angle, self,observed_agents,self.time, MessageType.RANDOM_DIRECTION))
+            self.move_in_angle(self.angle)
 
         self.switch_circle_mode()
 
-    def move_in_angle(self, angle, pace=1):
-        self.move_to_target(self.get_position() + pace * np.array([math.cos(angle), math.sin(angle)]))
+    def init_angle(self):
+        self.angle = External.random_angle()
+        self.chance = 0.99
+
+    def continuous_angle(self):
+        if self.angle is None:
+            self.init_angle()
+        else:
+            coin = random.random()
+            if coin > self.chance:
+                self.init_angle()
+            self.chance -= 0.01
+
+
+    def move_in_angle(self, angle, pace=0.5):
+        self.move_to_target(self.get_position() + pace * np.array([math.cos(angle), math.sin(angle)]), pace=pace)
 
     def switch_circle_mode(self):
         self.circle_mode = CircleMode((self.circle_mode.value + 1) % len(CircleMode))
@@ -694,14 +711,19 @@ class ContaminationAgent(object):
         """
         # Collect messages from router.
         logging.info("Agent {0} CircleState: {1}".format(self.index, self.circle_state))
+
+        # Zero out the action in each axis so we won't repeat the action that was done previously for no reason.
         self.action = np.array([0,0])
+
+        # Get the messages that were sent to the agent in the last time step.
         messages = self.get_messages(observation)
+
+        # Act according to the agents circle_state.
         if self.circle_state == CircleState.SINGLE:
             self.single_strategy(observation, messages)
         elif self.circle_state == CircleState.CONVERGING:
             self.converging_strategy(observation, messages)
         else:
-            # Execute circle state strategy.
             self.circle_strategy(observation, messages)
 
     def advance_time(self):
