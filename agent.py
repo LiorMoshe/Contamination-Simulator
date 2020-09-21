@@ -8,7 +8,7 @@ from gym import spaces
 
 import external_policy as External
 from comm.router import *
-from utils import get_slope, get_agent_arc_size, euclidean_dist
+from utils import get_slope, get_agent_arc_size, euclidean_dist, get_max_stable_cycle_size, get_max_dense_circle_size
 
 
 class InternalState(Enum):
@@ -537,7 +537,7 @@ class ContaminationAgent(object):
 
 
 
-    def circle_strategy(self, observation, messages):
+    def circle_strategy(self, observation, messages, threhold):
         """
         This is the strategy executed by each agent which is already in a given circle.
         The hard part of this strategy is how can we merge circles together. Coordinating a circle requires a full
@@ -641,7 +641,8 @@ class ContaminationAgent(object):
 
             # Prefer merging with circle than proposing a new merger.
 
-            if largest_proposal_size >= largest_circle_size:
+            if largest_proposal_size >= largest_circle_size and \
+                    largest_proposal_size + len(self.circle_info.participants) < threhold:
                 if largest_proposal.proposed_from in observed_agents:
                     # Send APPROVE_CIRCLE message to the other agent.
                     updated_circle = CircleMessage(self.circle_info.participants.union(largest_proposal.participants),
@@ -697,7 +698,7 @@ class ContaminationAgent(object):
     def switch_circle_mode(self):
         self.circle_mode = CircleMode((self.circle_mode.value + 1) % len(CircleMode))
 
-    def distributed_strategy(self, observation):
+    def distributed_strategy(self, observation, clique_mode=False):
         """
         Based on its current circular state, execute the distributed strategy.
         Set the current action of the agent based on the given strategy.
@@ -718,13 +719,16 @@ class ContaminationAgent(object):
         # Get the messages that were sent to the agent in the last time step.
         messages = self.get_messages(observation)
 
+        clique_size = get_max_stable_cycle_size(self.min_obs_rad, self.max_obs_rad)
+        odc_size = get_max_dense_circle_size(self.min_obs_rad, self.robot_radius)
+
         # Act according to the agents circle_state.
         if self.circle_state == CircleState.SINGLE:
             self.single_strategy(observation, messages)
         elif self.circle_state == CircleState.CONVERGING:
             self.converging_strategy(observation, messages)
         else:
-            self.circle_strategy(observation, messages)
+            self.circle_strategy(observation, messages, odc_size if not clique_mode else clique_size)
 
     def advance_time(self):
         self.time += 1
